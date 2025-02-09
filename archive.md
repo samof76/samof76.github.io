@@ -1,4 +1,4 @@
 ---
 layout: archive
-title: more
+title: all posts
 ---

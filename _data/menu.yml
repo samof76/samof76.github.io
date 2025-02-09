@@ -2,11 +2,11 @@
 # https://github.com/riggraz/no-style-please#customize-the-menu
 
 entries:
-  - title: all posts
+  - title: posts
     post_list:
       limit: 5
       show_more: true
-      show_more_text: See more...
+      show_more_text: all posts...
       show_more_url: archive.html
 
   - title: rss
