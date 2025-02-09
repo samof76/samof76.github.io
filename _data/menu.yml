@@ -2,7 +2,7 @@
 # https://github.com/riggraz/no-style-please#customize-the-menu
 
 entries:
-  - title: posts
+  - title: recent posts
     post_list:
       limit: 5
       show_more: true
@@ -16,7 +16,7 @@ entries:
     entries:
       - title: template developer.
         url: https://riggraz.dev/
-      - title: teplate itself.
+      - title: template itself.
         url: https://github.com/riggraz/no-style-please
 
   - title: more about me...
