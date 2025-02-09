@@ -14,15 +14,10 @@ entries:
 
   - title: thanks
     entries:
-      - title: Thanks to
+      - title: template developer.
+        url: https://riggraz.dev/
+      - title: teplate itself.
+        url: https://github.com/riggraz/no-style-please
 
-  - title: me
-    entries:
-      - title: x profile.
-        usl: https://x.com/samof76
-      - title: github profile.
-        url: https://github.com/samof76
-      - title: linkedin profile.
-        url: https://www.linkedin.com/in/samof76
-      - title: instagram profile
-        url: https://instagram.com/samof76
+  - title: more about me...
+    url: about

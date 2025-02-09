@@ -1,8 +1,6 @@
 ---
 layout: page
-title: About
+title: More about me
 ---
 
-This is an example page!
-
-It's very similar to a `post` layout, with the only difference that the publish date is not shown!
+social me: [x](https://x.com/samof76) | [instagram](https://instagram.com/samof76) | [github](https://github.com/samof76) | [linkedin](https://linkedin.com/in/samof76)
