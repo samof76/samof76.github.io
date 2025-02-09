@@ -4,7 +4,7 @@ email: samof76@gmail.com # email of site's author
 url: https://samof76.github.io # root address of the site
 baseurl: "" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
 description: > # description of the site (multiple lines allowed)
-  A (nearly) no-CSS, fast, minimalist Jekyll theme.
+  Ramblings of a humid mind.
 
 permalink: /:slug.html
 
@@ -17,7 +17,7 @@ theme_config:
   appearance: "auto" # can be "light", "dark" or "auto"
   back_home_text: "< home" # customize text for homepage link in post layout
   date_format: "%Y-%m-%d" # customize how date is formatted
-  show_description: false # show blog description in home page
+  show_description: true # show blog description in home page
   lowercase_titles: true # show titles in lowercase in lists
 
 sass:
