@@ -7,7 +7,7 @@ entries:
       limit: 5
       show_more: true
       show_more_text: See more...
-      show_more_url: more.html
+      show_more_url: archive.html
 
   - title: rss
     url: feed.xml

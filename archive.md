@@ -1,4 +1,4 @@
 ---
-layout: more
-title: More
+layout: archive
+title: more
 ---
