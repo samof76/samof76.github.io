@@ -35,7 +35,7 @@ sshCommand = "ssh -i ~/.ssh/id_rsa"
 $ ~/bar-gh/.gitconfig.bar
 [user]
 email = bar@hotmail.com
-name = Bar Bitters
+name = Bar Biters
 
 [github]
 user = "bar"
