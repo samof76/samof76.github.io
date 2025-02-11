@@ -19,7 +19,7 @@ Third I create `.gitconfig` files in each of those folder, `~/foo-gh/.gitconfig.
 ```
 $ ~/foo-gh/.gitconfig.foo
 [user]
-email = mojozoox@gotmail.com
+email = foo@gmail.com
 name = Foo Fighters
 
 [github]
@@ -34,8 +34,8 @@ sshCommand = "ssh -i ~/.ssh/id_rsa"
 ```
 $ ~/bar-gh/.gitconfig.bar
 [user]
-email = mojozoox@gotmail.com
-name = Foo Fighters
+email = bar@hotmail.com
+name = Bar Bitters
 
 [github]
 user = "bar"
