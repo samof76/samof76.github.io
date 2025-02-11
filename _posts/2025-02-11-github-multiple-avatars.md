@@ -1,3 +1,7 @@
+---
+layout: post
+category: git
+---
 If you are like me with multiple avatars, `foo` and `bar` on the GitHub, and want to access GitHub with both those avatars from the same machine. Here is how I do it and her is you too could do it.
 
 First I would create two differet keys to access each of those users.
