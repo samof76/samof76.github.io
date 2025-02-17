@@ -1,14 +1,19 @@
-Code at...
+---
+layout: post
+category: kubernetes
+---
+
+Not to loose track, keeping the code at ...
 
 ```bash
 git log --oneline | head -1
 7bfdda4696f Merge pull request #129380 from jdtuhui/testifylint/len@component-base
 ```
 
-The starts at line number `cmd/kubelet/kubelet.go: 34`
+The Kubelet starts at line number `cmd/kubelet/kubelet.go: 34`
 
 ```go
-// kubelet.go
+// cmd/kubelet/kubelet.go
 ...
 func main() {
 	command := app.NewKubeletCommand()
@@ -1373,7 +1378,6 @@ By running these components in separate goroutines, the Kubelet can handle multi
 5. [Kube Generic Runtime Manager](https://github.com/kubernetes/kubernetes/blob/7bfdda4696f78fc789fe91420f7c8609c71002d0/pkg/kubelet/kuberuntime/kuberuntime_manager.go#L98)
 6. [EventedPLEG](https://github.com/kubernetes/kubernetes/blob/7bfdda4696f78fc789fe91420f7c8609c71002d0/pkg/kubelet/pleg/evented.go#L63)
 7. [GenericPLEG](https://github.com/kubernetes/kubernetes/blob/7bfdda4696f78fc789fe91420f7c8609c71002d0/pkg/kubelet/pleg/generic.go#L53)
-8.
 
 ## Contribution Opportunities:
 - Can definitely improve the logic in this [code](https://vscode.dev/github/kubernetes/kubernetes/blob/master/staging/src/k8s.io/component-helpers/node/util/ips.go#L33) for `parseNodeIP` function, it so difficult to read and digest.
@@ -1419,13 +1423,6 @@ func UsingLegacyCadvisorStats(runtimeEndpoint string) bool {
 	return strings.HasSuffix(runtimeEndpoint, CrioSocketSuffix)
 }
 ```
-
-### TODO: Deepdive ProbeManager
-
-Start from this...
-48. The `klet.probeManager`(`pkg/kubelet/kubelet.go: 867`) is initialized to an instance of prode manager interface, `Manager` defined at `pkg/kubelet/prober/prober_manager.go: 71` which creates a probe worker for every container that specifies a probe, and it also updates each of the pod container status.
-
-To curl the kubelet's runtime configuration, you need to access the kubelet's API endpoint, which typically listens on port `10250` by default. The kubelet provides a `/configz` endpoint that exposes its runtime configuration.
 
 ### How to get the kubelet's runtime configuration?
 Here’s how you can curl the kubelet's runtime configuration:
@@ -1551,15 +1548,6 @@ And then you will add a version feature gate entry in `versioned_kube_feature.go
 - The state of a feature gate (enabled or disabled) can be controlled using the `--feature-gates` flag when starting Kubernetes components like the kubelet, API server, or controller manager.
 - Feature gates often progress through stages: Alpha → Beta → GA (General Availability).
 
-### TODO: Describe how volumePluginMgr works
-
-Lookup this ...
-
-At `pkg/kubelet/kubelet.go: 896`
-  - The `klet.volumePluginMgr` is initialized using the `NewInitializedVolumePluginMgr` function.
-	- The `volumePluginMgr`, manages all volume plugins (e.g., CSI, FlexVolume, in-tree plugins) that the Kubelet uses to provision and manage storage for pods.
-	- if `err`, then this function returns
-
 ### About backOff
 
 Couple of things note about about backOff configuration that is set on the kubelet here...
@@ -1590,13 +1578,21 @@ Also, if you not `func` that is assigned to `HasExpiredFunc`, it does not take `
 	// beginning after observing time has passed at least equal to 2*maxDuration
 
 ```
+
+### TODO: Deepdive ProbeManager
+
+Start from this...
+48. The `klet.probeManager`(`pkg/kubelet/kubelet.go: 867`) is initialized to an instance of prode manager interface, `Manager` defined at `pkg/kubelet/prober/prober_manager.go: 71` which creates a probe worker for every container that specifies a probe, and it also updates each of the pod container status.
+
+To curl the kubelet's runtime configuration, you need to access the kubelet's API endpoint, which typically listens on port `10250` by default. The kubelet provides a `/configz` endpoint that exposes its runtime configuration.
+
 ### TODO: EvictionManager
 
 As found here...
 
 59. At `pkg/kubelet/kubelet.go: 943` creates an `Manager` instance(`pkg/kubelet/eviction/types.go`) which is implemented by the `managerImpl`(`pkg/kubelet/eviction/eviction_manager.go: 66`) by calling the `eviction.NewManager`. The instance of `Manager` is passed in both `evictionManager` and `evictionAdmitHandler`.
 
-### How does Critical Pod Admission work?
+### TODO: How does Critical Pod Admission work?
 
 Need to work on this...
 64. At `pkg/kubelet/kubelet.go: 968-969`, an instance of the `CriticalPodAdmissionHandler`(`pkg/kubelet/preemption/preemption.go: 45`) is created by calling the `NewCriticalPodAdmissionHandler`(`pkg/kubelet/preemption/preemption.go: 63`) and assigned to `criticalPodAdmissionHandler`, if not `error` and then it added to the `klet.admitHandlers` with predicates. Its critical to understand the `CriticalPodAdmissionHandler` is in fact an `AdmissionFailureHandler`(`pkg/kubelet/lifecycle/predicate.go: 87`)
@@ -1607,3 +1603,12 @@ Need to work on this...
 // cmd/kubelet/app/server.go: 930
 func buildKubeletClientConfig(ctx context.Context, s *options.KubeletServer, tp oteltrace.TracerProvider, nodeName types.NodeName) (*restclient.Config, func(), error) {
 ```
+
+### TODO: Describe how volumePluginMgr works
+
+Lookup this ...
+
+At `pkg/kubelet/kubelet.go: 896`
+  - The `klet.volumePluginMgr` is initialized using the `NewInitializedVolumePluginMgr` function.
+	- The `volumePluginMgr`, manages all volume plugins (e.g., CSI, FlexVolume, in-tree plugins) that the Kubelet uses to provision and manage storage for pods.
+	- if `err`, then this function returns
