@@ -3,14 +3,14 @@ layout: post
 category: kubernetes
 ---
 
-Not to loose track, keeping the code at ...
+To keep consistency, the code is maintained at ...
 
 ```bash
 git log --oneline | head -1
 7bfdda4696f Merge pull request #129380 from jdtuhui/testifylint/len@component-base
 ```
 
-The Kubelet starts at line number `cmd/kubelet/kubelet.go: 34`
+The Kubelet initialization begins at `cmd/kubelet/kubelet.go: 34`
 
 ```go
 // cmd/kubelet/kubelet.go
@@ -22,7 +22,7 @@ func main() {
 }
 ```
 
-The `app.NewKubeletCommand()` is defined in `cmd/kubelet/app/server.go: 136`, sets defaults with `options.NewKubeletFlags()` and `options.NewKubeletConfiguration()`.
+The `app.NewKubeletCommand()` function, defined at line 136 in `cmd/kubelet/app/server.go`, sets defaults using `options.NewKubeletFlags()` and `options.NewKubeletConfiguration()`.
 
 ```go
 ...
@@ -150,9 +150,9 @@ Then the following loads the configuration file if it is provided in `kubeletFla
 
 In case EKS Nodes, the kubelet service is managed by `systemd`, and the Kubelet configuration file is passed as an argument to the --config flag as you can [see in the `kubelet.service` file](https://github.com/awslabs/amazon-eks-ami/blob/3b667df7797233b170bec20033a20a47aaa5d0fc/templates/al2/runtime/kubelet-containerd.service#L11).
 
-Much of the configuration for there kubelet is updated during node startup in the [`bootstrap.sh` file](https://github.com/awslabs/amazon-eks-ami/blob/3b667df7797233b170bec20033a20a47aaa5d0fc/templates/al2/runtime/bootstrap.sh).
+The Kubelet's configuration is primarily established during node initialization through the [`bootstrap.sh` script](https://github.com/awslabs/amazon-eks-ami/blob/3b667df7797233b170bec20033a20a47aaa5d0fc/templates/al2/runtime/bootstrap.sh).
 
-There two critical enviroment variables that the bootstrap script sets up for the service `KUBELET_ARGS` and `KUBELET_EXTRA_ARGS`, using service configuration files in `/etc/systemd/system/kubelet.service.d/`...
+The bootstrap script configures two critical environment variables for the Kubelet service: `KUBELET_ARGS` and `KUBELET_EXTRA_ARGS`. These variables are defined in systemd service configuration files located at `/etc/systemd/system/kubelet.service.d/`...
 
 ```bash
 # https://github.com/awslabs/amazon-eks-ami/blob/3b667df7797233b170bec20033a20a47aaa5d0fc/templates/al2/runtime/bootstrap.sh#L625-L627
@@ -487,8 +487,11 @@ The `NewContainerManager` function is defined in `pkg/kubelet/cm/container_manag
 	}
 ```
 
-- Gets the `cgroupRoot` and generates `cgroupManager` factory passing the `subsystem`(cgroup v1 or v2) and `cgroupDriver` (systemd or cgroupfs) to use
-- Set the `cgroupVersion` on the `nodeConfig` to the version of the `cgroupManager`
+- Initializes the cgroup hierarchy by:
+  - Configuring the `cgroupRoot` directory
+  - Creating a `cgroupManager` factory with the appropriate subsystem (cgroup v1 or v2)
+  - Specifying the cgroup driver implementation (systemd or cgroupfs)
+- Updates the `nodeConfig.cgroupVersion` to reflect the active cgroup version from the manager
 
 ```go
 // pkg/kubelet/cm/container_manager_linux.go: 251
@@ -671,7 +674,7 @@ Now lets dive into what happens in `kubelet.NewMainKubelet`.
 
 The `NewMainKubelet` is defined in `pkg/kubelet/kubelet.go: 386`. `NewMainKubelet` instantiates a new Kubelet object along with all the required internal modules. No initialization of Kubelet and its modules happen here.
 
-1. At this point the following things need to set for the kubelet to be initialized.
+- At this point the following things need to set for the kubelet to be initialized:
 	- `rootDirectory`(default `/var/lib/kubelet`, `cmd/kubelet/app/options/options.go: 44`)
 	- `podLogsDir` (default `/var/log/pods`, `pkg/kubelet/apis/config/types.go: 92`)
 	- `kubeCfg.SyncFrequency.Duration` is greater than `0`.
@@ -684,18 +687,19 @@ The `NewMainKubelet` is defined in `pkg/kubelet/kubelet.go: 386`. `NewMainKubele
 	- Notify components about pod configuration changes
 	- Maintain pod state synchronization
 	- NOTE: This object in-memory "source of truth" for pod configurations
-Lets dived into this a bit, and look at the `makePodSourceConfig` function that is defined in `pkg/kubelet/kubelet.go: 323`.
+	Lets dived into this a bit, and look at the `makePodSourceConfig` function that is defined in `pkg/kubelet/kubelet.go: 323`.
 
 **DEEPER DIVE**
-This function sets up different sources from which a node can receive Pod configurations. Let me break it down step by step:
 
-1. First, the function takes several parameters:
+The `makePodSourceConfig` function establishes the various sources from which the Kubelet can receive Pod configurations. Here's a detailed breakdown of its functionality:
+
+- The function takes several parameters:
    - `kubeCfg`: Kubelet configuration settings
    - `kubeDeps`: Dependencies required by kubelet
    - `nodeName`: The name of the node
    - `nodeHasSynced`: A function that checks if the node has synced
 
-2. The function starts by setting up HTTP headers for static pod URLs:
+- The function starts by setting up HTTP headers for static pod URLs:
 ```go
 manifestURLHeader := make(http.Header)
 if len(kubeCfg.StaticPodURLHeader) > 0 {
@@ -707,15 +711,15 @@ if len(kubeCfg.StaticPodURLHeader) > 0 {
 }
 ```
 
-3. It creates a new PodConfig object that will handle pod configuration notifications:
+- It creates a new PodConfig object that will handle pod configuration notifications:
 ```go
 cfg := config.NewPodConfig(config.PodConfigNotificationIncremental, kubeDeps.Recorder, kubeDeps.PodStartupLatencyTracker)
 ```
 This creates an in memory "source of truth" for pod configurations, which will be used by the kubelet to monitor and apply pod configurations.
 
-4. The function then sets up three possible sources for pod configurations:
+- The function then sets up three possible sources for pod configurations:
 
-   a. File Source - for static pods defined in files:
+  - File Source - for static pods defined in files:
    ```go
    if kubeCfg.StaticPodPath != "" {
        config.NewSourceFile(kubeCfg.StaticPodPath, nodeName, kubeCfg.FileCheckFrequency.Duration, cfg.Channel(ctx, kubetypes.FileSource))
@@ -745,18 +749,18 @@ Each source is configured with its own update frequency and communication channe
 
 **/DEEPER DIVE**
 
-4. Create an instance of `kubecontainer.GCPolicy` at `pkg/kubelet/kubelet.go: 463`, which is used to manage the garbage collection of dead containers.
-5. **IMPORTANT**: Create an instance of `v1.NodeDaemonEndpoints` at `pkg/kubelet/kubelet.go: 469`, which is used to store the daemon endpoints of the node. Node Daemon Endpoints are specific endpoints that represent services running on a node in a Kubernetes cluster. They are defined by the `NodeDaemonEndpoints` struct, which currently contains a single endpoint type, `KubeletEndpoint`. This represents the endpoint where the Kubelet is listening. The Kubelet is the primary node agent that runs on each node in the cluster.
-6. Create an instance of `images.ImageGCPolicy` at `pkg/kubelet/kubelet.go: 473`, which is used to manage the garbage collection of unused images on the node.
-7. If the `ImageMaximumGCAge` feature is enabled, set the `imageGcPolicy.MaxAge.Duration` to the value of `kubeCfg.ImageGcMaximumAge.Duration`.
-8. Create an instance of `kubelet.LifecycleHandler` at `pkg/kubelet/kubelet.go: 477`, which is used to handle the lifecycle of pods.
-9. `kubeCfg.EnforceNodeAllocatable` is passed into a variable called `enforceNodeAllocatable` at `pkg/kubelet/kubelet.go: 485`, which is used to determine if the node allocatable should be enforced. This will be an empty array if we are not enforcing Evictions.
-10. `thresholds` is set based on the parsing of the Node Eviction Thresholds in `pkg/kubelet/kubelet.go: 488`. These thresholds are critical for...
+- Create an instance of `kubecontainer.GCPolicy` at `pkg/kubelet/kubelet.go: 463`, which is used to manage the garbage collection of dead containers.
+- **IMPORTANT**: Create an instance of `v1.NodeDaemonEndpoints` at `pkg/kubelet/kubelet.go: 469`, which is used to store the daemon endpoints of the node. Node Daemon Endpoints are specific endpoints that represent services running on a node in a Kubernetes cluster. They are defined by the `NodeDaemonEndpoints` struct, which currently contains a single endpoint type, `KubeletEndpoint`. This represents the endpoint where the Kubelet is listening. The Kubelet is the primary node agent that runs on each node in the cluster.
+- Create an instance of `images.ImageGCPolicy` at `pkg/kubelet/kubelet.go: 473`, which is used to manage the garbage collection of unused images on the node.
+- If the `ImageMaximumGCAge` feature is enabled, set the `imageGcPolicy.MaxAge.Duration` to the value of `kubeCfg.ImageGcMaximumAge.Duration`.
+- Create an instance of `kubelet.LifecycleHandler` at `pkg/kubelet/kubelet.go: 477`, which is used to handle the lifecycle of pods.
+- `kubeCfg.EnforceNodeAllocatable` is passed into a variable called `enforceNodeAllocatable` at `pkg/kubelet/kubelet.go: 485`, which is used to determine if the node allocatable should be enforced. This will be an empty array if we are not enforcing Evictions.
+- `thresholds` is set based on the parsing of the Node Eviction Thresholds in `pkg/kubelet/kubelet.go: 488`. These thresholds are critical for:
 	- Maintaining node stability
 	- Preventing out-of-resource scenarios
 	- Ensuring system processes have enough resources
 	- Managing pod evictions in a controlled manner
-11. **IMPORTANT**: An instance of `eviction.Config` is created at `pkg/kubelet/kubelet.go: 493`, which is used to configure the eviction manager.
+- **IMPORTANT**: An instance of `eviction.Config` is created at `pkg/kubelet/kubelet.go: 493`, which is used to configure the eviction manager.
 
 ```go
 	// pkg/kubelet/eviction/types.go: 46
@@ -774,7 +778,7 @@ Each source is configured with its own update frequency and communication channe
 	}
 ```
 
-12. Instance of `corelisters.ServiceLister` and `cache.InformerSynced` is created to list and and be informed about services ion the cluster.
+- Instance of `corelisters.ServiceLister` and `cache.InformerSynced` is created to list and and be informed about services ion the cluster.
 
 ```go
 	// pkg/kubelet/kubelet.go: 502
@@ -796,10 +800,10 @@ Each source is configured with its own update frequency and communication channe
 		}
 ```
 
-13. Create a  node reference object `nodeRef` of `v1.ObjectReference` at `pkg/kubelet/kubelet.go: 520`, this will be used for events.
-14. Create a OOMWatcher instance `oomWatcher` at `pkg/kubelet/kubelet.go: 527`, by calling `oomwatcher.NewOOMWatcher` which is used to monitor the OOM events on the node.
-15. Create an string slice `clusterDNS` at `pkg/kubelet/kubelet.go: 544`, and populate it based on the `kubeCfg.ClusterDNS` ip addresses.
-16. **IMPORTANT**: Create an insecure http client instance `insecureContainerLifecycleHTTPClient` at `pkg/kubelet/kubelet.go: 559`, which is used to make HTTP requests to the container lifecycle handler. The comments here are interesting:
+- Create a  node reference object `nodeRef` of `v1.ObjectReference` at `pkg/kubelet/kubelet.go: 520`, this will be used for events.
+- Create a OOMWatcher instance `oomWatcher` at `pkg/kubelet/kubelet.go: 527`, by calling `oomwatcher.NewOOMWatcher` which is used to monitor the OOM events on the node.
+- Create an string slice `clusterDNS` at `pkg/kubelet/kubelet.go: 544`, and populate it based on the `kubeCfg.ClusterDNS` ip addresses.
+- **IMPORTANT**: Create an insecure http client instance `insecureContainerLifecycleHTTPClient` at `pkg/kubelet/kubelet.go: 559`, which is used to make HTTP requests to the container lifecycle handler. The comments here are interesting:
 
 ```go
 	// A TLS transport is needed to make HTTPS-based container lifecycle requests,
@@ -809,64 +813,64 @@ Each source is configured with its own update frequency and communication channe
 	// critical that credentials not leak from the client to arbitrary hosts.
 ```
 
-17. An instance of `kubeDeps.TracerProvider.Tracer` is created, `tracer`, at `pkg/kubelet/kubelet.go: 566`.
-18. The `klet` an instance of the `Kubelet` struct is created at `pkg/kubelet/kubelet.go: 571`. Here is the code...
+- An instance of `kubeDeps.TracerProvider.Tracer` is created, `tracer`, at `pkg/kubelet/kubelet.go: 566`.
+- The `klet` an instance of the `Kubelet` struct is created at `pkg/kubelet/kubelet.go: 571`. Here is the code...
 
 ```go
-		klet := &Kubelet{
-			hostname:                       hostname,
-			hostnameOverridden:             hostnameOverridden,
-			nodeName:                       nodeName,
-			kubeClient:                     kubeDeps.KubeClient,
-			heartbeatClient:                kubeDeps.HeartbeatClient,
-			onRepeatedHeartbeatFailure:     kubeDeps.OnHeartbeatFailure,
-			rootDirectory:                  filepath.Clean(rootDirectory),
-			podLogsDirectory:               podLogsDirectory,
-			resyncInterval:                 kubeCfg.SyncFrequency.Duration,
-			sourcesReady:                   config.NewSourcesReady(kubeDeps.PodConfig.SeenAllSources),
-			registerNode:                   registerNode,
-			registerWithTaints:             registerWithTaints,
-			registerSchedulable:            registerSchedulable,
-			dnsConfigurer:                  dns.NewConfigurer(kubeDeps.Recorder, nodeRef, nodeIPs, clusterDNS, kubeCfg.ClusterDomain, kubeCfg.ResolverConfig),
-			serviceLister:                  serviceLister,
-			serviceHasSynced:               serviceHasSynced,
-			nodeLister:                     nodeLister,
-			nodeHasSynced:                  nodeHasSynced,
-			streamingConnectionIdleTimeout: kubeCfg.StreamingConnectionIdleTimeout.Duration,
-			recorder:                       kubeDeps.Recorder,
-			cadvisor:                       kubeDeps.CAdvisorInterface,
-			cloud:                          kubeDeps.Cloud,
-			externalCloudProvider:          cloudprovider.IsExternal(cloudProvider),
-			providerID:                     providerID,
-			nodeRef:                        nodeRef,
-			nodeLabels:                     nodeLabels,
-			nodeStatusUpdateFrequency:      kubeCfg.NodeStatusUpdateFrequency.Duration,
-			nodeStatusReportFrequency:      kubeCfg.NodeStatusReportFrequency.Duration,
-			os:                             kubeDeps.OSInterface,
-			oomWatcher:                     oomWatcher,
-			cgroupsPerQOS:                  kubeCfg.CgroupsPerQOS,
-			cgroupRoot:                     kubeCfg.CgroupRoot,
-			mounter:                        kubeDeps.Mounter,
-			hostutil:                       kubeDeps.HostUtil,
-			subpather:                      kubeDeps.Subpather,
-			maxPods:                        int(kubeCfg.MaxPods),
-			podsPerCore:                    int(kubeCfg.PodsPerCore),
-			syncLoopMonitor:                atomic.Value{},
-			daemonEndpoints:                daemonEndpoints,
-			containerManager:               kubeDeps.ContainerManager,
-			nodeIPs:                        nodeIPs,
-			nodeIPValidator:                validateNodeIP,
-			clock:                          clock.RealClock{},
-			enableControllerAttachDetach:   kubeCfg.EnableControllerAttachDetach,
-			makeIPTablesUtilChains:         kubeCfg.MakeIPTablesUtilChains,
-			nodeStatusMaxImages:            nodeStatusMaxImages,
-			tracer:                         tracer,
-			nodeStartupLatencyTracker:      kubeDeps.NodeStartupLatencyTracker,
-		}
+klet := &Kubelet{
+	hostname:                       hostname,
+	hostnameOverridden:             hostnameOverridden,
+	nodeName:                       nodeName,
+	kubeClient:                     kubeDeps.KubeClient,
+	heartbeatClient:                kubeDeps.HeartbeatClient,
+	onRepeatedHeartbeatFailure:     kubeDeps.OnHeartbeatFailure,
+	rootDirectory:                  filepath.Clean(rootDirectory),
+	podLogsDirectory:               podLogsDirectory,
+	resyncInterval:                 kubeCfg.SyncFrequency.Duration,
+	sourcesReady:                   config.NewSourcesReady(kubeDeps.PodConfig.SeenAllSources),
+	registerNode:                   registerNode,
+	registerWithTaints:             registerWithTaints,
+	registerSchedulable:            registerSchedulable,
+	dnsConfigurer:                  dns.NewConfigurer(kubeDeps.Recorder, nodeRef, nodeIPs, clusterDNS, kubeCfg.ClusterDomain, kubeCfg.ResolverConfig),
+	serviceLister:                  serviceLister,
+	serviceHasSynced:               serviceHasSynced,
+	nodeLister:                     nodeLister,
+	nodeHasSynced:                  nodeHasSynced,
+	streamingConnectionIdleTimeout: kubeCfg.StreamingConnectionIdleTimeout.Duration,
+	recorder:                       kubeDeps.Recorder,
+	cadvisor:                       kubeDeps.CAdvisorInterface,
+	cloud:                          kubeDeps.Cloud,
+	externalCloudProvider:          cloudprovider.IsExternal(cloudProvider),
+	providerID:                     providerID,
+	nodeRef:                        nodeRef,
+	nodeLabels:                     nodeLabels,
+	nodeStatusUpdateFrequency:      kubeCfg.NodeStatusUpdateFrequency.Duration,
+	nodeStatusReportFrequency:      kubeCfg.NodeStatusReportFrequency.Duration,
+	os:                             kubeDeps.OSInterface,
+	oomWatcher:                     oomWatcher,
+	cgroupsPerQOS:                  kubeCfg.CgroupsPerQOS,
+	cgroupRoot:                     kubeCfg.CgroupRoot,
+	mounter:                        kubeDeps.Mounter,
+	hostutil:                       kubeDeps.HostUtil,
+	subpather:                      kubeDeps.Subpather,
+	maxPods:                        int(kubeCfg.MaxPods),
+	podsPerCore:                    int(kubeCfg.PodsPerCore),
+	syncLoopMonitor:                atomic.Value{},
+	daemonEndpoints:                daemonEndpoints,
+	containerManager:               kubeDeps.ContainerManager,
+	nodeIPs:                        nodeIPs,
+	nodeIPValidator:                validateNodeIP,
+	clock:                          clock.RealClock{},
+	enableControllerAttachDetach:   kubeCfg.EnableControllerAttachDetach,
+	makeIPTablesUtilChains:         kubeCfg.MakeIPTablesUtilChains,
+	nodeStatusMaxImages:            nodeStatusMaxImages,
+	tracer:                         tracer,
+	nodeStartupLatencyTracker:      kubeDeps.NodeStartupLatencyTracker,
+}
 ```
-	**TODO**: Annotate each of the values of those variables in the `Kubelet` struct with references to where they are defined.
-19. If `klet.Cloud` is not `nil`, the `klet.CloudResourceSyncManager` is set to a new instance of `cloudprovider.CloudResourceSyncManager` at `pkg/kubelet/kubelet.go: 620`.
-20. **IMPORTANT**: `klet.secretManager` and `klet.configMapManager` are set. As you can see below
+**TODO**: Annotate each of the values of those variables in the `Kubelet` struct with references to where they are defined.
+- If `klet.Cloud` is not `nil`, the `klet.CloudResourceSyncManager` is set to a new instance of `cloudprovider.CloudResourceSyncManager` at `pkg/kubelet/kubelet.go: 620`.
+- **IMPORTANT**: `klet.secretManager` and `klet.configMapManager` are set. As you can see below
 
 ```go
     // pkg/kubelet/kubelet.go: 623
@@ -893,34 +897,34 @@ Each source is configured with its own update frequency and communication channe
 			klet.configMapManager = configMapManager
 		}
 ```
-    And by default `kubeCfg.ConfigMapAndSecretChangeDetectionStrategy` is set to `Watch`.
-21. An instance of `MachineInfo` is created, `machineInfo`, at `pkg/kubelet/kubelet.go: 646`, which is used to store the machine information. And the `machineInfo` is assigned `klet.machineInfo`.
-22. An instance of `BackOff` is created, `imageBackOff`, at `pkg/kubelet/kubelet.go: 655`, which is used to manage the backoff for image pull failures. This variable will be passed to the container runtime.
-23. `Manager`(s) for the `liveness`, `readiness` and `startup` probes is created into `klet.livenessManager`, `klet.readinessManager`, and `klet.startupManager` respectively at `pkg/kubelet/kubelet.go: 657-659` by call `proberesults.NewManager`.
-24. An instance of `cache` is created, `klet.podCache`, at `pkg/kubelet/kubelet.go: 660`, which is used to store the pod information.
-25. An instance of `MirrorClient`(`pkg/kubelet/pod/mirror_client.go: 34`) interface is created into `klet.mirrorPodClient` by calling `kubepod.NewBasicMirrorClient` at `pkg/kubelet/kubelet.go: 662`, which is used to manage the pod mirroring of Kubelet's static pods. `MirrorClient` knows how to create/delete a mirror pod in the API server.
+And by default `kubeCfg.ConfigMapAndSecretChangeDetectionStrategy` is set to `Watch`.
+- An instance of `MachineInfo` is created, `machineInfo`, at `pkg/kubelet/kubelet.go: 646`, which is used to store the machine information. And the `machineInfo` is assigned `klet.machineInfo`.
+- An instance of `BackOff` is created, `imageBackOff`, at `pkg/kubelet/kubelet.go: 655`, which is used to manage the backoff for image pull failures. This variable will be passed to the container runtime.
+- `Manager`(s) for the `liveness`, `readiness` and `startup` probes is created into `klet.livenessManager`, `klet.readinessManager`, and `klet.startupManager` respectively at `pkg/kubelet/kubelet.go: 657-659` by call `proberesults.NewManager`.
+- An instance of `cache` is created, `klet.podCache`, at `pkg/kubelet/kubelet.go: 660`, which is used to store the pod information.
+- An instance of `MirrorClient`(`pkg/kubelet/pod/mirror_client.go: 34`) interface is created into `klet.mirrorPodClient` by calling `kubepod.NewBasicMirrorClient` at `pkg/kubelet/kubelet.go: 662`, which is used to manage the pod mirroring of Kubelet's static pods. `MirrorClient` knows how to create/delete a mirror pod in the API server.
 
 **DEFINITION**
 
 Mirror pods in Kubernetes are special pod objects that exist for static pods. Here's how they work:
 
-1. Static Pod -> Mirror Pod Relationship:
+- Static Pod -> Mirror Pod Relationship:
    - When you create a static pod (by placing a pod manifest in the node's static pod directory)
    - The kubelet automatically creates a mirror pod on the API server
    - The mirror pod is essentially a read-only copy/representation of the static pod
 
-2. Key Characteristics:
+- Key Characteristics:
    - Mirror pods are only visible on the API server (you can see them with `kubectl`)
    - You cannot modify mirror pods directly through the API server
    - They have the same name as the static pod but are bound to the specific node
    - The kubelet adds a label `kubernetes.io/config.mirror` to identify them
 
-3. Purpose:
+- Purpose:
    - They make static pods visible to the control plane
    - Allow monitoring and visibility of static pods through standard Kubernetes tools
    - Help in tracking the status of static pods at the cluster level
 
-4. Example Use Case:
+- Example Use Case:
    - Common for system components like the kubelet itself
    - Often used for monitoring agents or networking plugins that need to run on every node
    - Useful when you need pods that must exist even if the API server is down
@@ -929,7 +933,7 @@ Think of mirror pods as the API server's "window" into static pods running on no
 
 **/DEFINITION**
 
-26. An instance of `basicManager`(`pkg/kubelet/pod/pod_manager.go: 108`) struct, which implements the `Manager`(`pkg/kubelet/pod/pod_manager.go: 45`) interface is created, `klet.podManager`, at `pkg/kubelet/kubelet.go: 664`, which is used to manage the pods on the node.
+- An instance of `basicManager`(`pkg/kubelet/pod/pod_manager.go: 108`) struct, which implements the `Manager`(`pkg/kubelet/pod/pod_manager.go: 45`) interface is created, `klet.podManager`, at `pkg/kubelet/kubelet.go: 664`, which is used to manage the pods on the node.
 
 **DEEPER DIVE**
 
@@ -960,10 +964,10 @@ The `podManager` is a critical component of the kubelet that manages the pods on
 
 **/DEEPER DIVE**
 
-27. An instance of status `manager`(`pkg/kubelet/status/status_manager.go: 71`) which implements the `Manager`(`pkg/kubelet/status/status_manager.go: 121`) interface, is created, `klet.statusManager`, at `pkg/kubelet/kubelet.go: 666`, which is used to manage the status of the pods on the node.
-28. An instance of `resourceAnalyzer`(`pkg/kubelet/server/stats/resource_analyzer.go: 33`) struct which implements the `ResourceAnalyzer`(`pkg/kubelet/server/stats/resource_analyzer.go: 25`) interface, is created, `klet.resourceAnalyzer`, at `pkg/kubelet/kubelet.go: 667`, which is used to analyze the resources on the node.
-29. `kubeDeps.RemoteRuntimeService` is assigned to `klet.runtimeService` at `pkg/kubelet/kubelet.go: 669`, which is used to manage the container runtime service.
-30. An instance of `containerLogManager`(`pkg/kubelet/logs/container_log_manager.go: 143`) struct which implements the `ContainerLogManager`(`pkg/kubelet/logs/container_log_manager.go: 55`) interface, is created, `klet.containerLogManager`, at `pkg/kubelet/kubelet.go: 676-687`, which is used to manage the container logs on the node.
+- An instance of status `manager`(`pkg/kubelet/status/status_manager.go: 71`) which implements the `Manager`(`pkg/kubelet/status/status_manager.go: 121`) interface, is created, `klet.statusManager`, at `pkg/kubelet/kubelet.go: 666`, which is used to manage the status of the pods on the node.
+- An instance of `resourceAnalyzer`(`pkg/kubelet/server/stats/resource_analyzer.go: 33`) struct which implements the `ResourceAnalyzer`(`pkg/kubelet/server/stats/resource_analyzer.go: 25`) interface, is created, `klet.resourceAnalyzer`, at `pkg/kubelet/kubelet.go: 667`, which is used to analyze the resources on the node.
+- `kubeDeps.RemoteRuntimeService` is assigned to `klet.runtimeService` at `pkg/kubelet/kubelet.go: 669`, which is used to manage the container runtime service.
+- An instance of `containerLogManager`(`pkg/kubelet/logs/container_log_manager.go: 143`) struct which implements the `ContainerLogManager`(`pkg/kubelet/logs/container_log_manager.go: 55`) interface, is created, `klet.containerLogManager`, at `pkg/kubelet/kubelet.go: 676-687`, which is used to manage the container logs on the node.
 
 ```go
     // pkg/kubelet/kubelet.go: 676
@@ -981,9 +985,9 @@ The `podManager` is a critical component of the kubelet that manages the pods on
   	klet.containerLogManager = containerLogManager
 ```
 
-31. An instance of `ReasonCache`(`pkg/kubelet/reason_cache.go: 38`) struct is created, `klet.reasonCache`, at `pkg/kubelet/kubelet.go: 673`, which is used to to store the failure reason for the latest container start, it's an `lru` cache hence it might not be reliable, but goal is propogate the reason to container stature.
-32. An instance of `basicWorkQueue`(`pkg/kubelet/util/queue/work_queue.go: 36`) struct which implements the `WorkQueue`(`pkg/kubelet/util/queue/work_queue.go: 29`), is created, `klet.workQueue`, at `pkg/kubelet/kubelet.go: 690`, WorkQueue allows queuing items with a timestamp and an item is considered ready to process if the timestamp has expired.
-33. An instance of `podWorkers`(`pkg/kubelet/pod_workers.go: 551`) struct which implements the `PodWorkers`(`pkg/kubelet/pod_workers.go: 36`), is created, `klet.podWorkers`, at `pkg/kubelet/kubelet.go: 692`.  The `PodWorkers` interface is used to manage the workers that process pods on the node. It provides methods to add, remove, and get workers, as well as to get the number of workers and the number of pods being processed by each worker. And here is a deeper look at this.
+- An instance of `ReasonCache`(`pkg/kubelet/reason_cache.go: 38`) struct is created, `klet.reasonCache`, at `pkg/kubelet/kubelet.go: 673`, which is used to to store the failure reason for the latest container start, it's an `lru` cache hence it might not be reliable, but goal is propogate the reason to container stature.
+- An instance of `basicWorkQueue`(`pkg/kubelet/util/queue/work_queue.go: 36`) struct which implements the `WorkQueue`(`pkg/kubelet/util/queue/work_queue.go: 29`), is created, `klet.workQueue`, at `pkg/kubelet/kubelet.go: 690`, WorkQueue allows queuing items with a timestamp and an item is considered ready to process if the timestamp has expired.
+- An instance of `podWorkers`(`pkg/kubelet/pod_workers.go: 551`) struct which implements the `PodWorkers`(`pkg/kubelet/pod_workers.go: 36`), is created, `klet.podWorkers`, at `pkg/kubelet/kubelet.go: 692`.  The `PodWorkers` interface is used to manage the workers that process pods on the node. It provides methods to add, remove, and get workers, as well as to get the number of workers and the number of pods being processed by each worker. And here is a deeper look at this.
 
 **DEEPER DIVE**
 
@@ -1020,22 +1024,22 @@ klet.podWorkers = newPodWorkers(
 
 The `podWorkers` is a core component in the kubelet that manages the lifecycle of pods. Here are its key responsibilities:
 
-1. State Management:
+- State Management:
    - It manages pods through three main states:
      - syncing: pod should be running
      - terminating: pod should be stopped
      - terminated: pod should have all resources cleaned up
 
-2. Exclusive Pod Execution:
+- Exclusive Pod Execution:
    - Once a pod is accepted, no other pod with the same UID (or name+namespace for static pods) can start until the first pod has fully terminated and been cleaned up.
    - This means even if a pod is desired in the API and admitted, it might have to wait for a prior pod to terminate.
 
-3. Event-Driven Architecture:
+- Event-Driven Architecture:
    - It works as an event-driven controller through `UpdatePod`
    - Requires periodic resyncing through `SyncKnownPods` to maintain desired state
    - Handles force-deleted pods that still need to complete their termination
 
-4. Authority:
+- Authority:
    - Acts as the authoritative source within kubelet for:
      - Which pods are actually running
      - Current state of each pod
@@ -1045,7 +1049,7 @@ In essence, it's the traffic controller for pod lifecycle management within the 
 
 **/DEEPER DIVE**
 
-34. A variable `singleProcessOOMKill` is set `pkg/kubelet/kubelet.go: 700`, which is used to determine if the kubelet should group kill all process within a container or kill on the concerned process. The default value for this cgroupv1 is `true`, and cannot be false, but in the cgroupv2 it could be either `true` or `false`, and the default is `false`.
+- A variable `singleProcessOOMKill` is set `pkg/kubelet/kubelet.go: 700`, which is used to determine if the kubelet should group kill all process within a container or kill on the concerned process. The default value for this cgroupv1 is `true`, and cannot be false, but in the cgroupv2 it could be either `true` or `false`, and the default is `false`.
 
 **JUST NOTE**
 
@@ -1053,25 +1057,30 @@ When we talk about group kill in the context of OOM (Out Of Memory) in container
 
 To clarify the different scopes:
 
-1. SingleProcessOOMKill=true:
-   - Only the specific process that exceeded memory is killed
-   - Other processes in the same container continue running
-   - Other containers in the pod are unaffected
+- When `SingleProcessOOMKill=true`, the Out-Of-Memory (OOM) killer behavior is configured to:
+  - Selectively terminate only the specific process that exceeds its memory limit
+  - Preserve other processes within the same container
+  - Maintain the integrity of other containers within the pod
 
-2. SingleProcessOOMKill=false (group kill):
-   - All processes in the same container are killed
-   - Other containers in the pod are unaffected
-   - The container will be restarted based on its restart policy
+This granular OOM control helps maintain system stability while minimizing the impact of memory-related terminations.
 
-So "group" in this context refers to all processes within a single container, not all containers in a pod. Each container in a pod manages its own OOM events independently.
+- When `SingleProcessOOMKill=false`, the OOM killer operates in group termination mode:
+  - Terminates all processes within the memory-exceeding container
+  - This conservative approach ensures complete cleanup of potentially unstable containers
+  - Helps prevent memory leaks and cascading failures
+  - Maintains pod-level isolation by preserving other containers in the pod
+  - Container restart behavior is governed by the pod's `restartPolicy` specification
 
-For example, if you have a pod with containers A and B:
-- If container A has an OOM event, only processes in container A are affected
-- Container B continues running normally regardless of container A's OOM event
+The term "group" in this context specifically denotes the process group within a single container's namespace, not the broader pod scope. This container-level isolation ensures that OOM events are handled independently for each container, maintaining the pod's overall stability and resource boundaries.
+
+Consider a pod with two containers A and B:
+- An OOM event in container A triggers the configured OOM killer behavior (single-process or group) exclusively within container A's namespace
+- Container B remains unaffected, maintaining its resource allocation and runtime state
+This isolation is fundamental to Kubernetes' container orchestration model, ensuring that resource-related issues in one container do not cascade to other containers within the same pod.
 
 **/JUST NOTE**
 
-35. A generic runtime manager is created, `runtime`, at `pkg/kubelet/kubelet.go: 714`, which is used to manage the runtime of the containers. `runtime` is an instance to `kubeGenericRuntimeManager`(`pkg/kubelet/kuberuntime/kuberuntime_manager.go: 98`) which implements interface `KubeGenericRuntime`(`pkg/kubelet/kuberuntime/kuberuntime_manager.go: 182`). `KubeGenericRuntime` is a interface contains interfaces for container runtime and command.
+- A generic runtime manager is created, `runtime`, at `pkg/kubelet/kubelet.go: 714`, which is used to manage the runtime of the containers. `runtime` is an instance to `kubeGenericRuntimeManager`(`pkg/kubelet/kuberuntime/kuberuntime_manager.go: 98`) which implements interface `KubeGenericRuntime`(`pkg/kubelet/kuberuntime/kuberuntime_manager.go: 182`). `KubeGenericRuntime` is a interface contains interfaces for container runtime and command.
 
 
 **DEEPER DIVE**
@@ -1153,37 +1162,37 @@ For example, if you have a pod with containers A and B:
 	)
 ```
 
-This is the `NewKubeGenericRuntimeManager` constructor function that creates and initializes a new Kubernetes runtime manager.
+The `NewKubeGenericRuntimeManager` constructor function initializes the Kubernetes Container Runtime Interface (CRI) manager, which serves as the primary interface between the Kubelet and the container runtime.
 
-Key aspects of this function:
+Architectural Components:
 
-1. Purpose:
-- Creates a container runtime manager that handles container operations in Kubernetes
-- Interfaces with the underlying container runtime (like Docker or containerd) through CRI (Container Runtime Interface)
+- Purpose:
+  - Creates a container runtime manager that handles container operations in Kubernetes
+  - Interfaces with the underlying container runtime (like Docker or containerd) through CRI (Container Runtime Interface)
 
-2. Important Parameters:
-- `recorder`: For recording events
-- Various managers for handling container probes (liveness, readiness, startup)
-- `runtimeService`: Interface to the container runtime
-- `imageService`: Service for handling container images
-- Configuration options like:
-  - `serializeImagePulls`: Controls parallel image pulling
-  - `maxParallelImagePulls`: Limits concurrent image pulls
-  - `seccompDefault`: Security computing mode settings
-  - `memorySwapBehavior`: Memory swap configuration
+- Important Parameters:
+  - `recorder`: For recording events
+  - Various managers for handling container probes (liveness, readiness, startup)
+  - `runtimeService`: Interface to the container runtime
+  - `imageService`: Service for handling container images
+  - Configuration options like:
+    - `serializeImagePulls`: Controls parallel image pulling
+    - `maxParallelImagePulls`: Limits concurrent image pulls
+    - `seccompDefault`: Security computing mode settings
+    - `memorySwapBehavior`: Memory swap configuration
 
-3. Main Operations:
-- Creates an instrumented runtime and image service, with metrics
-- Initializes a new `kubeGenericRuntimeManager` with the provided parameters
-- Verifies runtime API version compatibility
-- Sets up credential providers for container image pulling
-- Initializes several sub-components:
-  - Image puller
-  - Lifecycle handler runner
-  - Container garbage collector
-  - Version cache
+- Main Operations:
+  - Creates an instrumented runtime and image service, with metrics
+  - Initializes a new `kubeGenericRuntimeManager` with the provided parameters
+  - Verifies runtime API version compatibility
+  - Sets up credential providers for container image pulling
+  - Initializes several sub-components:
+    - Image puller
+    - Lifecycle handler runner
+    - Container garbage collector
+    - Version cache
 
-4. Version Checking:
+- Version Checking:
 
 ```go
 if typedVersion.Version != kubeRuntimeAPIVersion {
@@ -1193,11 +1202,11 @@ if typedVersion.Version != kubeRuntimeAPIVersion {
 - Ensures the runtime API version matches the supported version
 - Returns an error if versions are incompatible
 
-5. Component Initialization:
-- Sets up image pulling management:
-- Sets up lifecycle handler(`postStart` and `preStop`) for container
-- Sets up new container garbage collector
-- The `podStateProvider` is assigned the `podWorkers` instance
+- Component Initialization:
+  - Sets up image pulling management:
+  - Sets up lifecycle handler(`postStart` and `preStop`) for container
+  - Sets up new container garbage collector
+  - The `podStateProvider` is assigned the `podWorkers` instance
 
 ```go
 kubeRuntimeManager.imagePuller = images.NewImageManager(
@@ -1225,61 +1234,65 @@ This function is a crucial part of Kubernetes' container runtime abstraction lay
 
 **/DEEPER DIVE**
 
-36. The `runtime` is assigned to,
+- The `runtime` is assigned to:
   - `klet.containerRuntime` at `pkg/kubelet/kubelet.go: 751`, which is used to manage the container runtime.
   - `klet.streamingRuntime` at `pkg/kubelet/kubelet.go: 752`, which handles container streaming.
   - `klet.runner` at `pkg/kubelet/kubelet.go: 753`, which will be used to run commands inside of the container.
-37. Create an instance of `RuntimeCache` in `runtimeCache` at `pkg/kubelet/kubelet.go: 755`, runtimeCache caches a list of pods. It records a timestamp (cacheTime) right before updating the pods, so the timestamp is at most as new as the pods (and can be slightly older). The timestamp always moves forward. Callers are expected not to modify the pods returned from GetPods. And then that is assigned to `klet.runtimeCache`.
-38. Create an instance of `HostStatsProvider` that defines an interface for providing host stats associated with pods that are managed by the kubelet, and assigns it `hostStatsProvider` at `pkg/kubelet/kubelet.go: 762`.
-39. The container runtime stats providers is initialized into `klet.StatsProvider`, creating an instance of `Provider`(`pkg/kubelet/stats/provider.go: 91`) which provides the stats of the node and the pod-managed containers, at `pkg/kubelet/kubelet.go: 766`.
-40. An `eventChannel` is created for `PodLifecycleEvent` at `pkg/kubelet/kubelet.go: 786`. And since the `EventedPLEG` feature flag is still in `Alpha` a generic pleg interface is created at `pkg/kubelet/kubelet.go: 812` with an instance of `PodLifecycleEventGenerator`(`pkg/kubelet/pleg/pleg.go`), which container functions for generating pod lifecycle events, and stored in `klet.gleg`.
-41. A `newRuntimeState` is assiged to `klet.runtimeState`, by calling the function with the same, passing the `maxWaitForContainerRuntime` which defines the maximum wait time for the runtime to be available. Ref, `pkg/kubelet/kubelet.go: 815`
-42. A PLEG health check is added to `klet.runtimeState`, by calling the `addHealthCheck` at `pkg/kubelet/kubelet.go: 816`
-43. **IMPORTANT**: The `runtimeState.cidr` is update with CIDR obtained from `kudeCfg.PodCIDR`, by calling the `klet.updatePodCIDR` function at `pkg/kubelet/kubelet.go: 820`. `updatePodCIDR`(`pkg/kubelet/kubelet_network.go: 44`) updates the pod CIDR in the runtime state if it is different from the current CIDR. Return true if pod CIDR is actually changed.
-44. An instance to `GC`(`pkg/kubelet/container/container_gc.go: 43`) interface, which manages garbage collection of dead containers, is created by calling `NewContainerGC` at `pkg/kubelet/kubelet.go: 825`. And upon error, this assigned to `klet.containerGC` at `pkg/kubelet/kubelet.go: 829`
-45. An instance of `podContainerDeletor` struct(`pkg/kubelet/pod_container_deletor.go: 36`), created into `klet.containerDeletor` by calling the `newPodContainerDeletor` at `pkg/kubelet/kubelet.go: 830`. A `podContainerDeletor`, is an asynchronous worker(a goroutine) that receives containers ids from a channel, and calls `runtime.DeleteContaier`(`pkg/kubelet/pod_container_deletor.go: 52`) which in turn calls `removeContainer`(`pkg/kubelet/kuberuntime/kuberuntime_container.go: 1314`), to remove container and container logs.
-46. An instance of `ImageGCManager` interface(`pkg/kubelet/images/image_gc_manager.go: 69`), which managed the lifecycle of all images, is create by calling `NewImageGCManager`(`pkg/kubelet/images/images_gc_manager.go: 184`) at `pkg/kubelet/kubelet.go: 833`. And upon no error that instance is assigned to `klet.imageManager`(yes, not `*GCManager`).
-47. Based on the `kubeDeps.TLSOptions`, the `klet.serverCertificateManager` is setup at `pkg/kubelet/kubelet.go: 839-851`.
-48. The `klet.probeManager`(`pkg/kubelet/kubelet.go: 867`) is initialized to an instance of prode manager interface, `Manager` defined at `pkg/kubelet/prober/prober_manager.go: 71` which creates a probe worker for every container that specifies a probe, and it also updates each of the pod container status.
-49. A `tokenManager` is created using the `NewManager` function from the `token` package at `pkg/kubelet/kubelet.go: 876`, this must be used later one. The `tokenManager` is responsible for managing the service account tokens.
-50. At `pkg/kubelet/kubelet.go: 878-891`,
+- Create an instance of `RuntimeCache` in `runtimeCache` at `pkg/kubelet/kubelet.go: 755`, runtimeCache caches a list of pods. It records a timestamp (cacheTime) right before updating the pods, so the timestamp is at most as new as the pods (and can be slightly older). The timestamp always moves forward. Callers are expected not to modify the pods returned from GetPods. And then that is assigned to `klet.runtimeCache`.
+- Create an instance of `HostStatsProvider` that defines an interface for providing host stats associated with pods that are managed by the kubelet, and assigns it `hostStatsProvider` at `pkg/kubelet/kubelet.go: 762`.
+- The container runtime stats providers is initialized into `klet.StatsProvider`, creating an instance of `Provider`(`pkg/kubelet/stats/provider.go: 91`) which provides the stats of the node and the pod-managed containers, at `pkg/kubelet/kubelet.go: 766`.
+- An `eventChannel` is created for `PodLifecycleEvent` at `pkg/kubelet/kubelet.go: 786`. And since the `EventedPLEG` feature flag is still in `Alpha` a generic pleg interface is created at `pkg/kubelet/kubelet.go: 812` with an instance of `PodLifecycleEventGenerator`(`pkg/kubelet/pleg/pleg.go`), which container functions for generating pod lifecycle events, and stored in `klet.gleg`.
+- A `newRuntimeState` is assiged to `klet.runtimeState`, by calling the function with the same, passing the `maxWaitForContainerRuntime` which defines the maximum wait time for the runtime to be available. Ref, `pkg/kubelet/kubelet.go: 815`
+- A PLEG health check is added to `klet.runtimeState`, by calling the `addHealthCheck` at `pkg/kubelet/kubelet.go: 816`
+- **IMPORTANT**: The `runtimeState.cidr` is update with CIDR obtained from `kudeCfg.PodCIDR`, by calling the `klet.updatePodCIDR` function at `pkg/kubelet/kubelet.go: 820`. `updatePodCIDR`(`pkg/kubelet/kubelet_network.go: 44`) updates the pod CIDR in the runtime state if it is different from the current CIDR. Return true if pod CIDR is actually changed.
+- An instance to `GC`(`pkg/kubelet/container/container_gc.go: 43`) interface, which manages garbage collection of dead containers, is created by calling `NewContainerGC` at `pkg/kubelet/kubelet.go: 825`. And upon error, this assigned to `klet.containerGC` at `pkg/kubelet/kubelet.go: 829`
+- An instance of `podContainerDeletor` struct(`pkg/kubelet/pod_container_deletor.go: 36`), created into `klet.containerDeletor` by calling the `newPodContainerDeletor` at `pkg/kubelet/kubelet.go: 830`. A `podContainerDeletor`, is an asynchronous worker(a goroutine) that receives containers ids from a channel, and calls `runtime.DeleteContaier`(`pkg/kubelet/pod_container_deletor.go: 52`) which in turn calls `removeContainer`(`pkg/kubelet/kuberuntime/kuberuntime_container.go: 1314`), to remove container and container logs.
+- An instance of `ImageGCManager` interface(`pkg/kubelet/images/image_gc_manager.go: 69`), which managed the lifecycle of all images, is create by calling `NewImageGCManager`(`pkg/kubelet/images/images_gc_manager.go: 184`) at `pkg/kubelet/kubelet.go: 833`. And upon no error that instance is assigned to `klet.imageManager`(yes, not `*GCManager`).
+- Based on the `kubeDeps.TLSOptions`, the `klet.serverCertificateManager` is setup at `pkg/kubelet/kubelet.go: 839-851`.
+- The `klet.probeManager`(`pkg/kubelet/kubelet.go: 867`) is initialized to an instance of prode manager interface, `Manager` defined at `pkg/kubelet/prober/prober_manager.go: 71` which creates a probe worker for every container that specifies a probe, and it also updates each of the pod container status.
+- A `tokenManager` is created using the `NewManager` function from the `token` package at `pkg/kubelet/kubelet.go: 876`, this must be used later one. The `tokenManager` is responsible for managing the service account tokens.
+- At `pkg/kubelet/kubelet.go: 878-891`,
   - `clusterTrustBundleManger` is initialized to manager `ClusterTrustBundle`(`staging/src/k8s.io/api/certificate/v1alpha1/types.go: 44`)
 	- If `ClusterTrustBundleProjection` feature flag is enabled, an informer based manager is created. Otherwise, a no-op manager is used instead.
 	- TODO: Check the above in the existing clusters as default for `ClusterTrustBundleProjection` is `false`, and its still an alpha feature.
-51. At `pkg/kubelet/kubelet.go: 896`
+- At `pkg/kubelet/kubelet.go: 896`
   - The `klet.volumePluginMgr` is initialized using the `NewInitializedVolumePluginMgr` function.
 	- The `volumePluginMgr`, manages all volume plugins (e.g., CSI, FlexVolume, in-tree plugins) that the Kubelet uses to provision and manage storage for pods.
 	- if `err`, then this function returns
-52. At `pkg/kubelet/kubelet.go: 901`, create a `PluginManager` instance by calling `pluginmanager.NewPluginManager`, and assigns it to `klet.pluginManager`. `pluginManager`, manages the lifecycle of kubelet plugins.
-53. At `pkg/kubelet/kubelet.go: 908-912`, if `experimentalMounterPath` is set it configures DNS in the containerized mounter's environment.
-54. At `pkg/kubelet/kubelet.go: 915-927`, creates a `VolumeManager` instance by calling `volumemanager.NewVolumeManager` and assigns it to `klet.volumeManager`. `volumeManager`, is responsible for managing the lifecycle of volumes (e.g., attaching, mounting, unmounting, detaching) for pods running on the node.
-55. At `pkg/kubelet/kubelet.go: 929` variable `boMax` is initialized to `MaxContainerBackOff`(which is `300 * time.Second`).
-56. At `pkg/kubelet/kubelet.go: 930` variable `base` is initialized to `containerBackOffPeriod`(which is `time.Second * 10`)
-57. At `pkg/kubelet/kubelet.go: 931-936` if the `KubeletCrashLoopBackOffMax` feature gate(currently in `Alpha` and default `false`) is enabled, `boMax` is reset accordingly.
-58. At `pkg/kubelet/kubelet.go: 937` creates a `BackOff` instance by calling `flowcontrol.NewBackOff` and assigns it `klet.backOff`. And at `pkg/kubelet/kubelet.go: 938`, assign an anonymous function to the `klet.backOff.HasExpiredFunc`, which returns a boolean on the expiry backOff which reset the backOff counter.
-59. At `pkg/kubelet/kubelet.go: 943` creates an `Manager` instance(`pkg/kubelet/eviction/types.go`) which is implemented by the `managerImpl`(`pkg/kubelet/eviction/eviction_manager.go: 66`) by calling the `eviction.NewManager`. The instance of `Manager` is passed in both `evictionManager` and `evictionAdmitHandler`. And at `pkg/kubelet/kubelet.go: 946-947`, these are assigned to `klet.evictionManager.evictionManager` and `klet.admitHandlers` respectively.
-60. At `pkg/kubelet/kubelet.go: 951` the slice `safeAndUnsafeSysctls` is assigned the slice containing both `sysctl.SafeSysctlAllowlist()`, and user provided(though configuration) `allowedUnsafeSysctls`. And at `pkg/kubelet/kubelet.go: 952`, the `safeAndUnsafeSysctls` is verified by passing to `NewAllowList`(`pkg/kubelet/sysctl/allowlist.go: 44`), and the returns `patternAllowlist`(`pkg/kubelet/sysctl/allowlist.go: 36`) in to `sysctlsAllowList`. On `err` in this case this function returns with an `error`.
-61. At `pkg/kubelet/kubelet.go: 956` the `sysctlsAllowlist` is add to `klet.admitHandlers`.
-62. At `pkg/kubelet/kubelet.go: 959` an instance of `activeDeadlineHandler`(`pkg/kubelet/active_deadline.go: 36`) is created by calling `newActiveDeadlineHandler`(`pkg/kubelet/active_deadline.go: 46`), and assigned to `activeDeadlineHandler`. A deadline handler, manages the pod deadline. And this is added to `klet`'s  `PodSyncLoopHandler` and `PodSyncHandler` at `pkg/kubelet/kubelet.go: 963` and `pkg/kubelet/kubelet.go: 964` respectively. On `err` in this case this function returns with an `error`.
-63. At `pkg/kubelet/kubelet.go: 966`, an admit handler responsible for allocating resources to pod `GetAllocateResourcesPodAdmitHandler`(`pkg/kubelet/cm/container_manager.go: 136`), added to `klet.admitHandler`.
-64. At `pkg/kubelet/kubelet.go: 968-969`, an instance of the `CriticalPodAdmissionHandler`(`pkg/kubelet/preemption/preemption.go: 45`) is created by calling the `NewCriticalPodAdmissionHandler`(`pkg/kubelet/preemption/preemption.go: 63`) and assigned to `criticalPodAdmissionHandler`, if not `error` and then it added to the `klet.admitHandlers` with predicates. Its critical to understand the `CriticalPodAdmissionHandler` is in fact an `AdmissionFailureHandler`(`pkg/kubelet/lifecycle/predicate.go: 87`)
-65. If `linux`, at `pkg/kubelet/kubelet.go: 977` an instance of `Validator`(`pkg/security/apparmor/validate.go: 34`) interface which validates that a pod with AppArmor profile can be run by that Node, and assigned to `klet.appArmorValidator`
-65. If `linux`, at `pkg/kubelet/kubelet.go: 977` an instance of `Validator`(`pkg/security/apparmor/validate.go: 34`) interface which validates that a pod with AppArmor profile can be run by that Node, and assigned to `klet.appArmorValidator`, this is added to the `klet.adminHandlers` at `pkg/kubelet/kubelet.go: 978`.
-66. **IMPORTANT**: At `pkg/kubelet/kubelet.go: 981-992`, the `klet.nodeLeaseController` is initialized, this controller is responsible for renewing lease of the kubelet with the api-server. A lease is the indicator the node's health. The `leaseDuration`(`pkg/kubelet/kubelet.go: 981`) default to `40s`, and `renewInterval`(`pkg/kubelet/kubelet.go: 982`) is one-fourth of the `leasDuration`.
-67. **IMPORTANT:** At `pkg/kubelet/kubelet.go: 995`, the node `shutdownManager` is assigned an instance of `Manager`(`pkg/kubelet/nodeshutdown/nodeshutdown_manager.go: 42`) interface, which will handle aspects of the node shutdown, including honoring the graceful shutdown periods, for critical pods or pods by priority. The `shutdownManager`, is then assigned to the `klet.shutdownManager`(`pkg/kubelet/kubelet.go: 1009`)
-68. At `pkg/kubelet/kubelet.go: 1010` an instance of the `UsernsManager`(`pkg/kubelet/userns/userns_manager.go: 54`), is created which ensures avoiding the UID and GID with those of on the node, and effective manage User Namespaces, and assigned to `klet.usernsManager`.
-69. At `pkg/kubelet/kubelet.go: 1014` the `shutdownManager`(from the `67.`) is added to the `klet.admitHandlers`
-70. At `pkg/kubelet/kubelet.go: 1018` the latest `kubeCfg`, is assigned to the `klet.kubeletConfiguration`.
-71. At `pkg/kubelet/kubelet.go: 1022` the node status functions are generated and assinged to `klet.setNodeStatusFuncs` by calling the `defaultNodeStatusFuncs`(`pkg/kubelet/kubelet_node_status.go: 760`), which returns an array of callback functions.
-72. If the `SystemdWatchdog` feature flag is enabled, which in most mordern Kubernetes clusters(>= 1.32), this allows using systemd watchdog to monitor the health status of kubelet. At `pkg/kubelet/kubelet.go: 1028` the `klet.healthChecker` is updated with the new checkers.
+- At `pkg/kubelet/kubelet.go: 901`, create a `PluginManager` instance by calling `pluginmanager.NewPluginManager`, and assigns it to `klet.pluginManager`. `pluginManager`, manages the lifecycle of kubelet plugins.
+- At `pkg/kubelet/kubelet.go: 908-912`, if `experimentalMounterPath` is set it configures DNS in the containerized mounter's environment.
+- At `pkg/kubelet/kubelet.go: 915-927`, creates a `VolumeManager` instance by calling `volumemanager.NewVolumeManager` and assigns it to `klet.volumeManager`. `volumeManager`, is responsible for managing the lifecycle of volumes (e.g., attaching, mounting, unmounting, detaching) for pods running on the node.
+- At `pkg/kubelet/kubelet.go: 929` variable `boMax` is initialized to `MaxContainerBackOff`(which is `300 * time.Second`).
+- At `pkg/kubelet/kubelet.go: 930` variable `base` is initialized to `containerBackOffPeriod`(which is `time.Second * 10`)
+- At `pkg/kubelet/kubelet.go: 931-936` if the `KubeletCrashLoopBackOffMax` feature gate(currently in `Alpha` and default `false`) is enabled, `boMax` is reset accordingly.
+- At `pkg/kubelet/kubelet.go: 937` creates a `BackOff` instance by calling `flowcontrol.NewBackOff` and assigns it `klet.backOff`. And at `pkg/kubelet/kubelet.go: 938`, assign an anonymous function to the `klet.backOff.HasExpiredFunc`, which returns a boolean on the expiry backOff which reset the backOff counter.
+- At `pkg/kubelet/kubelet.go: 943` creates an `Manager` instance(`pkg/kubelet/eviction/types.go`) which is implemented by the `managerImpl`(`pkg/kubelet/eviction/eviction_manager.go: 66`) by calling the `eviction.NewManager`. The instance of `Manager` is passed in both `evictionManager` and `evictionAdmitHandler`. And at `pkg/kubelet/kubelet.go: 946-947`, these are assigned to `klet.evictionManager.evictionManager` and `klet.admitHandlers` respectively.
+- At `pkg/kubelet/kubelet.go: 951` the slice `safeAndUnsafeSysctls` is assigned the slice containing both `sysctl.SafeSysctlAllowlist()`, and user provided(though configuration) `allowedUnsafeSysctls`. And at `pkg/kubelet/kubelet.go: 952`, the `safeAndUnsafeSysctls` is verified by passing to `NewAllowList`(`pkg/kubelet/sysctl/allowlist.go: 44`), and the returns `patternAllowlist`(`pkg/kubelet/sysctl/allowlist.go: 36`) in to `sysctlsAllowList`. On `err` in this case this function returns with an `error`.
+- At `pkg/kubelet/kubelet.go: 956` the `sysctlsAllowlist` is add to `klet.admitHandlers`.
+- At `pkg/kubelet/kubelet.go: 959` an instance of `activeDeadlineHandler`(`pkg/kubelet/active_deadline.go: 36`) is created by calling `newActiveDeadlineHandler`(`pkg/kubelet/active_deadline.go: 46`), and assigned to `activeDeadlineHandler`. A deadline handler, manages the pod deadline. And this is added to `klet`'s  `PodSyncLoopHandler` and `PodSyncHandler` at `pkg/kubelet/kubelet.go: 963` and `pkg/kubelet/kubelet.go: 964` respectively. On `err` in this case this function returns with an `error`.
+- At `pkg/kubelet/kubelet.go: 966`, an admit handler responsible for allocating resources to pod `GetAllocateResourcesPodAdmitHandler`(`pkg/kubelet/cm/container_manager.go: 136`), added to `klet.admitHandler`.
+- At `pkg/kubelet/kubelet.go: 968-969`, an instance of the `CriticalPodAdmissionHandler`(`pkg/kubelet/preemption/preemption.go: 45`) is created by calling the `NewCriticalPodAdmissionHandler`(`pkg/kubelet/preemption/preemption.go: 63`) and assigned to `criticalPodAdmissionHandler`, if not `error` and then it added to the `klet.admitHandlers` with predicates. Its critical to understand the `CriticalPodAdmissionHandler` is in fact an `AdmissionFailureHandler`(`pkg/kubelet/lifecycle/predicate.go: 87`)
+- If `linux`, at `pkg/kubelet/kubelet.go: 977` an instance of `Validator`(`pkg/security/apparmor/validate.go: 34`) interface which validates that a pod with AppArmor profile can be run by that Node, and assigned to `klet.appArmorValidator`
+- If `linux`, at `pkg/kubelet/kubelet.go: 977` an instance of `Validator`(`pkg/security/apparmor/validate.go: 34`) interface which validates that a pod with AppArmor profile can be run by that Node, and assigned to `klet.appArmorValidator`, this is added to the `klet.adminHandlers` at `pkg/kubelet/kubelet.go: 978`.
+- **IMPORTANT**: At `pkg/kubelet/kubelet.go: 981-992`, the `klet.nodeLeaseController` is initialized, this controller is responsible for renewing lease of the kubelet with the api-server. A lease is the indicator the node's health. The `leaseDuration`(`pkg/kubelet/kubelet.go: 981`) default to `40s`, and `renewInterval`(`pkg/kubelet/kubelet.go: 982`) is one-fourth of the `leasDuration`.
+- **IMPORTANT:** At `pkg/kubelet/kubelet.go: 995`, the node `shutdownManager` is assigned an instance of `Manager`(`pkg/kubelet/nodeshutdown/nodeshutdown_manager.go: 42`) interface, which will handle aspects of the node shutdown, including honoring the graceful shutdown periods, for critical pods or pods by priority. The `shutdownManager`, is then assigned to the `klet.shutdownManager`(`pkg/kubelet/kubelet.go: 1009`)
+- At `pkg/kubelet/kubelet.go: 1010` an instance of the `UsernsManager`(`pkg/kubelet/userns/userns_manager.go: 54`), is created which ensures avoiding the UID and GID with those of on the node, and effective manage User Namespaces, and assigned to `klet.usernsManager`.
+- At `pkg/kubelet/kubelet.go: 1014` the `shutdownManager`(from above) is added to the `klet.admitHandlers`
+- At `pkg/kubelet/kubelet.go: 1018` the latest `kubeCfg`, is assigned to the `klet.kubeletConfiguration`.
+- At `pkg/kubelet/kubelet.go: 1022` the node status functions are generated and assinged to `klet.setNodeStatusFuncs` by calling the `defaultNodeStatusFuncs`(`pkg/kubelet/kubelet_node_status.go: 760`), which returns an array of callback functions.
+- If the `SystemdWatchdog` feature flag is enabled, which in most mordern Kubernetes clusters(>= 1.32), this allows using systemd watchdog to monitor the health status of kubelet. At `pkg/kubelet/kubelet.go: 1028` the `klet.healthChecker` is updated with the new checkers.
 
 Then at `pkg/kubelet/kubelet.go: 1033` the function returns created `klet` instance.
 
 **/DEEPER DIVE**
 
-Once `k` is successfully initialized at, `pkg/kubelet/kubelet.go: 1310`, then by calling `k.BirthCry()`(`pkg/kubelet/kubelet.go: 1341`) kubelet sends an event that the kubelet has started up. And then starts the garbage collection threads by calling the `k.StartGarbageCollection()`(`pkg/kubelet/kubelet.go: 1343`).
+Upon successful initialization at `pkg/kubelet/kubelet.go: 1310`, the Kubelet performs two critical operations:
+1. Emits a startup event via `k.BirthCry()` (`pkg/kubelet/kubelet.go: 1341`)
+2. Initiates garbage collection routines through `k.StartGarbageCollection()` (`pkg/kubelet/kubelet.go: 1343`)
 
-At `pkg/kubelet/kubelet.go: 1345` the `createAndInitKubelet` function returns instance of newly initialized Kubelet instance `k`, to the `RunKubelet` function. The next major function call is the `startKubelet` function at `cmd/kubelet/app/server.go:1281`, before that `podCfg` is assigned `kubeDeps.PodConfig`, and linux rlimit for the maximum open files, is to `kubeServer.MaxOpenFiles` at `cmd/kubelet/app/server.go: 1277`, and this `MaxOpenFiles` is a Kubelet Configuration setting.
+The `createAndInitKubelet` function at `pkg/kubelet/kubelet.go: 1345` returns the initialized Kubelet instance `k` to the `RunKubelet` function. Before proceeding to the `startKubelet` function (`cmd/kubelet/app/server.go:1281`), two configuration parameters are set:
+- `podCfg` is initialized with `kubeDeps.PodConfig`
+- The Linux resource limit (rlimit) for maximum open files is configured via `kubeServer.MaxOpenFiles` (`cmd/kubelet/app/server.go: 1277`)
 
 Now back to the `startKubelet` function at `cmd/kubelet/app/server.go:1281`. Lets dive deeper into the `startKubelet` function.
 
@@ -1427,11 +1440,13 @@ func UsingLegacyCadvisorStats(runtimeEndpoint string) bool {
 ### How to get the kubelet's runtime configuration?
 Here’s how you can curl the kubelet's runtime configuration:
 
-#### 1. **Ensure you have access to the kubelet API**
-   - The kubelet API is usually protected by authentication and authorization mechanisms. You may need to provide a valid token or client certificate to access it.
-   - If you're running this command from a node where the kubelet is running, you can access it via `localhost`.
+#### Prerequisites
+- **Ensure you have access to the kubelet API**
+  - The kubelet API is usually protected by authentication and authorization mechanisms. You may need to provide a valid token or client certificate to access it.
+  - If you're running this command from a node where the kubelet is running, you can access it via `localhost`.
 
-#### 2. **Use `curl` to access the `/configz` endpoint**
+#### Accessing Configuration
+- **Use `curl` to access the `/configz` endpoint**
    ```bash
    curl -sSk -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
    https://localhost:10250/configz
@@ -1508,8 +1523,8 @@ In the Kubernetes codebase, feature gates are defined in the `pkg/features/kube_
 		 - `LockToDefault`: Indicates that the feature is locked to its default and cannot be changed
 		 - `Version`: ndicates the earliest version from which this FeatureSpec is valid.
 
-4. **Check Version-Specific Feature Gates**:
-   - The file often includes comments indicating in which Kubernetes version a feature gate was introduced or graduated (e.g., from Alpha to Beta or GA). For example:
+- **Check Version-Specific Feature Gates**:
+  - The file often includes comments indicating in which Kubernetes version a feature gate was introduced or graduated (e.g., from Alpha to Beta or GA). For example:
      ```go
      // FeatureGateExample is an example feature gate.
      // Owner: @community
