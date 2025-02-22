@@ -4,6 +4,7 @@ category: kubernetes
 ---
 
 > Note: This document contains my personal notes from exploring the Kubelet initialization process in Kubernetes. Due to its nature as working notes, it may not follow a strictly formal structure and might contain areas marked for further investigation or clarification. The content is technical and assumes familiarity with Kubernetes internals.
+
 To keep consistency, the code is maintained at ...
 
 ```bash
