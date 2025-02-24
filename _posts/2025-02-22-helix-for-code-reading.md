@@ -4,7 +4,7 @@ title: Helix for Code Reading
 category: tools, ide, editor
 ---
 
-While looking through the Kubernetes codebase to look at [code for kubelet initialization](https://samof76.space/kubelet-initialization.html), I wanted lesser distractions and wanted something lighter, [Helix](https://docs.helix-editor.com/) was the perfect choice. Helix is a lightweight text editor that is designed for code reading and editing. It has a minimalistic interface that is easy to navigate and has a fast startup time. Helix excellent language server support and also helps in debugging(while I have not used it extensively yet).
+While looking through the Kubernetes codebase to look at [code for kubelet initialization](https://samof76.space/kubelet-initialization.html), I wanted lesser distractions and wanted something lighter, [Helix](https://helix-editor.com/) was the perfect choice. Helix is a lightweight text editor that is designed for code reading and editing. It has a minimalistic interface that is easy to navigate and has a fast startup time. Helix excellent language server support and also helps in debugging(while I have not used it extensively yet).
 
 ## Installation
 
@@ -69,49 +69,49 @@ It would present you with a list of files and directories in the specified direc
 
 From here you could use arrow keys to navigate through the file. Suppose you wanted to **jump to the definition of the function** `NewKubeletCommand`, you can put your cursor at or on the function call, and do...
 
-```keys
+```
 g + d
 ```
 
 And suppose you wanted to **go back** to where you came from you could just move backward by pressing
 
-```keys
+```
 ctrl + o
 ```
 
 and **go forward** by pressing
 
-```keys
+```
 ctrl + i
 ```
 
 Now suppose you wanted **list all reference** of the function `NewKubeletCommand`, you can put your cursor at or on the function call, and do...
 
-```keys
+```
 g + r
 ```
 
 Suppose you lost your way come want to **navigate through hops**, you could use the following key combination:
 
-```keys
+```
 space + j
 ```
 
 This will list all what Helix calls a **jumplist**, as picker. Now suppose you want to go to an implementation of an interface function, you could use the following key combination:
 
-```keys
+```
 g + i
 ```
 
 Suppose you are aware of symbol, wanted to **search for that symbol** inside the project, you could use the following key combination:
 
-```keys
+```
 space + shift(s)
 ```
 
 Suppose you wanted **copy something into the system clipboard**, you first enter the _Select Mode_ by pressing `v`, and then use the following key combination:
 
-```keys
+```
 <arrow-keys-to-select> + space + shift(y)
 ```
 
