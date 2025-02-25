@@ -5,7 +5,7 @@ category: kubernetes
 
 > Note: This document contains my personal notes from exploring the Kubelet initialization process in Kubernetes. Due to its nature as working notes, it may not follow a strictly formal structure and might contain areas marked for further investigation or clarification. The content is technical and assumes familiarity with Kubernetes internals.
 
-> **UPDATE:** I used the [Helix Editor](https://helix-editor.com/), and felt it was the perfect tool for walking through code from the terminal. And recently wrote [a blog post](https://samof76.github.io/blog/helix-for-code-reading.html) about it.
+> **UPDATE:** I used the [Helix Editor](https://helix-editor.com/), and felt it was the perfect tool for walking through code from the terminal. And recently wrote [a blog post](https://samof76.space/helix-for-code-reading.html) about it.
 
 To keep consistency, the code is maintained at ...
 
