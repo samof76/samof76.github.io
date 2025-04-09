@@ -4,6 +4,8 @@ title: CPUManagerPolicy Under the Hood
 category: kubernetes, kubelet, cpu-manager, cpu-manager-policy
 ---
 
+> WARNING: There are known issues with using this method, that might cause diruptions in some edge cases and are yet to be fixed. Here are the [bugs](https://github.com/orgs/kubernetes/projects/185/views/1?filterQuery=cpumanager) that are being tracked.
+
 According to the documentation, when `static` CPUManager is used, the [`cpuset` cgroup controller](https://docs.kernel.org/admin-guide/cgroup-v1/cpusets.html) is used to assign specific cores to the container with guaranteed CPU resources. This ensures that the container has exclusive access to the specified cores, preventing interference from other processes, reducing noisy neighbor issues and also ensuring the container itself is not noisy neighor. First a look at the section where this configuration is defined in `kubelet-config.json`.
 
 ```bash
