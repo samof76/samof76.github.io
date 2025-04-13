@@ -1,3 +1,9 @@
+@font-face {
+    font-family: "MonaspaceRadon";
+    src: url("../fonts/MonaspaceRadonFrozen-Regular.ttf");
+    font-weight: 200;
+}
+
 body[a="dark"] {
     filter: invert(1);
 }
@@ -34,6 +40,8 @@ body[a="dark"] iframe {
 html,
 body {
     background: white;
+    font-family: "MonaspaceRadon", monospace;
+    font-weight: 300;
 }
 
 html {
@@ -43,7 +51,6 @@ html {
 
 body {
     color: black;
-    font-family: monospace;
     font-size: 16px;
     line-height: 1.4;
     margin: 0;
@@ -109,8 +116,11 @@ td {
 }
 
 code {
-    color: white;
+    color: greenyellow;
     background: black;
+    font-family: "MonaspaceRadon", monospace;
+    font-size: 14px;
+    font-weight: 100;
 }
 
 div.highlighter-rouge code {
