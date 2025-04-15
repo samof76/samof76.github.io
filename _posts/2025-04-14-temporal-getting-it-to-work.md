@@ -108,3 +108,27 @@ These are enough concepts to get me started, as I now understand it...
 Cool. Now what. I guess I should start with **Hello World** of Temporal.
 
 ## Hello Temporal
+
+I am wondering  what is a _Workflow_-as-code actually, as I am visual learner I will pick a simple example disect it. But before that would learn something about the `temporal` command. So let's fetch it and install it, and I am going to do it on my host machine.
+
+```bash
+pushd /tmp
+# As of this wrinting following is the latest stable version
+wget https://github.com/temporalio/cli/releases/download/v1.3.0/temporal_cli_1.3.0_linux_amd64.tar.gz
+tar -xvf temporal_cli_1.3.0_linux_amd64.tar.gz
+mv temporal ~/.local/bin/
+popd
+# Setup autocompletions and I use fish shell on my host
+echo 'eval "$(temporal completion fish)"' >~/.config/fish/completions/temporal.fish
+source ~/.config/fish/completions/temporal.fish
+temporal # and tab-tab-tab...
+```
+
+So I can now talk to my installation of _Temporal Service_ running inside of my vagrant machine, but wait a minute its running on different port, `17233`, from the host. Now looking for an env variable, to setup the default Temporal Service lookup and found `TEMPORAL_ADDRESS`.
+
+```bash
+set -x TEMPORAL_ADDRESS localhost:17233
+# On bash `export TEMPORAL_ADDRESS=localhost:17233`
+temporal workflow list
+# No output as we do not have anything as yet
+```
