@@ -10,7 +10,7 @@ I use [asdf](https://asdf-vm.com/) for installing and managing all my package ve
 
 The moment I was writing this, the current version of asdf was `v0.16.7` and since I use the x86_64 architecture with Linux; downloading the right executable looked like this.
 
-```fish
+```
 pushd /tmp
 # Download the asdf tarball (which you already have)
 wget https://github.com/asdf-vm/asdf/releases/download/v0.16.7/asdf-v0.16.7-linux-amd64.tar.gz
@@ -31,7 +31,7 @@ That takes care of install it to the `PATH`. But since I have already got legacy
 
 Now that I asdf in my `PATH`, I would need to setup my `fish` shell environment to use the latest asdf but the existing installed and versioned tools. Here we go.
 
-```fish
+```
 echo "set -gx ASDF_DATA_DIR /home/msv/.asdf" >> ~/.config/fish/config.fish
 echo "set -gx PATH $ASDF_DATA_DIR/shims $PATH" >> ~/.config/fish/config.fish
 ```
