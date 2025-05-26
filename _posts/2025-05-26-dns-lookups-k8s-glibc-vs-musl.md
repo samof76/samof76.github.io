@@ -497,13 +497,13 @@ Generally, understanding these differences is crucial when developing applicatio
 Specifically, understanding these differences is crucial for properly sizing, configuring, and monitoring CoreDNS in Kubernetes environments, especially in clusters with a mix of glibc and musl-libc based containers. By implementing the recommended best practices, organizations can mitigate the impact of these differences and ensure reliable DNS resolution in their Kubernetes clusters.
 
 ## References
-1. glibc NameResolver documentation: https://sourceware.org/glibc/wiki/NameResolver
-2. musl-libc functional differences from glibc: https://wiki.musl-libc.org/functional-differences-from-glibc.html
-3. glibc source code: https://github.com/bminor/glibc/tree/master/resolv
-4. musl-libc source code: https://github.com/bminor/musl/blob/master/src/network
-6. Kubernetes Issue #112135- musl-based DNS resolution will break on v1.25.0 in certain configurations: https://github.com/kubernetes/kubernetes/issues/112135
-7. "Enhancing DNS Efficiency for Smoother Kubernetes Clusters" by Ermia Qasemi: https://ermiaqasemi.me/enhancing-dns-efficiency-for-smoother-kubernetes-clusters-d0b565ec5db8
-8. "Creating greater reliability: CoreDNS-nodecache" by Contentful: https://www.contentful.com/blog/coredns-nodecache-blog/
-9. "Best practices for DNS services" by Alibaba Cloud Container Service for Kubernetes: https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/dns-best-practices
-10. "Understanding DNS in Kubernetes" by Povilas Versockas: https://povilasv.me/understanding-dns-in-kubernetes/
-11. "Understanding DNS resolution on Linux and Kubernetes" by Jérôme Petazzoni: https://jpetazzo.github.io/2024/05/12/understanding-kubernetes-dns-hostnetwork-dnspolicy-dnsconfigforming/
+1. [glibc NameResolver documentation](https://sourceware.org/glibc/wiki/NameResolver)
+2. [musl-libc functional differences from glibc](https://wiki.musl-libc.org/functional-differences-from-glibc.html)
+3. [glibc source code](https://github.com/bminor/glibc/tree/master/resolv)
+4. [musl-libc source code](https://github.com/bminor/musl/blob/master/src/network)
+6. [Kubernetes Issue #112135- musl-based DNS resolution will break on v1.25.0 in certain configurations](https://github.com/kubernetes/kubernetes/issues/112135)
+7. ["Enhancing DNS Efficiency for Smoother Kubernetes Clusters" by Ermia Qasemi](https://ermiaqasemi.me/enhancing-dns-efficiency-for-smoother-kubernetes-clusters-d0b565ec5db8)
+8. ["Creating greater reliability: CoreDNS-nodecache" by Contentful](https://www.contentful.com/blog/coredns-nodecache-blog/)
+9. ["Best practices for DNS services" by Alibaba Cloud Container Service for Kubernetes](https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/dns-best-practices)
+10. ["Understanding DNS in Kubernetes" by Povilas Versockas](https://povilasv.me/understanding-dns-in-kubernetes/)
+11. ["Understanding DNS resolution on Linux and Kubernetes" by Jérôme Petazzoni](https://jpetazzo.github.io/2024/05/12/understanding-kubernetes-dns-hostnetwork-dnspolicy-dnsconfigforming/)
