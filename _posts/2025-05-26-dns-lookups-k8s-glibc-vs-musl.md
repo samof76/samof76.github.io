@@ -4,8 +4,6 @@ title: DNS Lookups glibc vs musl-libc wrt K8s
 category: kubernetes, glibc, musl, dns
 ---
 
-# DNS Lookups glibc vs musl-libc wrt K8s
-
 > ASIDE: Love the way [hare-lang](https://harelang.org/) has implemented [DNS lookups](https://git.sr.ht/~sircmpwn/hare/tree/989d021522d24cede090f38e1a00704a40b9e798/item/net/dns/query.ha), it's so clean to read and understand. Just to note, they have followed the musl-libc way of implementing, but only cleaner :).
 
 Recently while going through the [musl-libc](https://musl.libc.org/) documentation, I noticed that it has a [different approach to DNS lookups](https://wiki.musl-libc.org/functional-differences-from-glibc.html) compared to glibc. Just want to document this from the kubernetes context here.
