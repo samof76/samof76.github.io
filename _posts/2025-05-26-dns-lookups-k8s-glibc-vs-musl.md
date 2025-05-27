@@ -461,7 +461,7 @@ Based on the findings, here are actionable best practices for managing CoreDNS l
 - Set a minimum of 2 CoreDNS pods for all clusters
 - For clusters with many musl-based containers, use a higher CoreDNS-to-node ratio
 - Allocate sufficient CPU and memory resources to CoreDNS pods
-- Use manual scaling or dns-autoscaler instead of HPA/CronHPA to avoid frequent scaling operations
+- Use Keda with custom metrics for scaling operations
 
 ### 4. Monitor DNS Query Patterns
 
