@@ -91,13 +91,13 @@ This will ensure the the node is removed and no longer part of the K8s cluster. 
 
 **Step 7.** At this point when you will need to logged in to the node, you should `pause` all the docker containers. But before that you might want to check for any spurious connection from the running containers.
 
-```
+```bash
 # docker ps -q | xargs -n1 -I{} -P0 bash -c "docker inspect -f '{{.State.Pid}}' {}; exit 0;" | xargs -n1 -I{} -P0 bash -c 'nsenter -t {} -n ss -p -a -t4 state established; echo; exit 0'
 ```
 
 And the pause the running containers.
 
-```
+```bash
 $ docker ps -q | xargs -n1 -I{} -P0 bash -c 'docker pause {}; exit 0'
 ```
 
