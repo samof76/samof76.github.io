@@ -21,7 +21,7 @@ mkdir -p ~/bar-gh
 Third I create `.gitconfig` files in each of those folder, `~/foo-gh/.gitconfig.foo`...
 
 ```
-$ ~/foo-gh/.gitconfig.foo
+$ cat > ~/foo-gh/.gitconfig.foo << EOF
 [user]
 email = foo@gmail.com
 name = Foo Fighters
@@ -36,7 +36,7 @@ sshCommand = "ssh -i ~/.ssh/id_rsa"
 ... and `~/bar-gh/.gitconfig.bar`
 
 ```
-$ ~/bar-gh/.gitconfig.bar
+$ cat > ~/bar-gh/.gitconfig.bar << EOF
 [user]
 email = bar@hotmail.com
 name = Bar Biters
@@ -46,9 +46,10 @@ user = "bar"
 
 [core]
 sshCommand = "ssh -i ~/.ssh/id_ecdsa"
+EOF
 ```
 
-Finally I create `~/.gitconfig`
+Finally I create `~/.gitconfig` or append to an existing one
 
 ```
 [includeIf "gitdir:~/foo-gh/"] # include for all .git projects under ~/foo-gh/
