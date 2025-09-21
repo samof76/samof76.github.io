@@ -31,6 +31,7 @@ user = "foo"
 
 [core]
 sshCommand = "ssh -i ~/.ssh/id_rsa"
+EOF
 ```
 
 ... and `~/bar-gh/.gitconfig.bar`
