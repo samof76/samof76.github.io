@@ -268,3 +268,7 @@ Once the plan database was inconsistent:
 * Engineers had to manually restore a valid DNS record set into Route 53 to bring `dynamodb.us-east-1.amazonaws.com` back online.
 
 > **DISCLAIMER:** I am somehow not really satisfied with the above explanation myself, but I will try to update with a better one.
+
+## Unanswered question!
+
+**What led to the slowdown of the enactor X?**
