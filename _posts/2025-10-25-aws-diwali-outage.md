@@ -271,4 +271,4 @@ Once the plan database was inconsistent:
 
 ## Unanswered question!
 
-**What led to the slowdown of the enactor X?**
+**What led to the slowdown of the DNS enactor X?**
