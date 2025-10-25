@@ -4,8 +4,6 @@ title: Understanding the Kubectl's `drain` command
 category: kubernetes, kubectl, cli
 ---
 
-# Understading Drain Command
-
 Command's help
 
 ```bash
@@ -62,6 +60,9 @@ Usage:
 
 Use "kubectl options" for a list of global command-line options (applies to all commands).
 ```
+## Sequence Diagram
+
+![Sequence Diagram](https://kubernetes.io/images/docs/kubectl_drain.svg)
 
 ## Code
 
