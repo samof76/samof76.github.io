@@ -269,6 +269,22 @@ Once the plan database was inconsistent:
 
 > **DISCLAIMER:** I am somehow not really satisfied with the above explanation myself, but I will try to update with a better one.
 
-## Unanswered question!
+---
 
-**What led to the slowdown of the DNS Enactor X?**
+## Unanswered questions!
+
+### What caused the initial slowdown of one DNS Enactor?
+Was it CPU contention, Route 53 API throttling, network saturation, or a dependency stall?
+Understanding *why* the first Enactor lagged is crucial — without that trigger, the race condition might never have materialized.
+
+### Why did the Enactor’s “freshness check” not re-validate before committing?
+The Enactor verified plan freshness only once at start.
+Shouldn’t there be a re-validation step right before applying, especially if processing is delayed?
+
+### Why wasn’t there a safeguard preventing deletion of the *currently active* plan?
+Cleanup logic deleted all “old” plans, including the one still live.
+Should the system have tracked which plan is currently serving traffic before deletion?
+
+### Why did dependent control planes (EC2 DWFM, Network Manager, NLB health checks) lack graceful degradation when DynamoDB failed?
+Each subsystem cascaded failure instead of isolating or caching state.
+Could stronger local caching or fallback mechanisms have prevented the multi-hour recovery chain?
