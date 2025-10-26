@@ -4,6 +4,8 @@ title: AWS's Diwali Damaka
 category: aws, outage, rca
 ---
 
+> **UPDATE:** Added some lingering questions at the end of this. May be there will be more added, but added those that are most pertinent to this issue.
+
 I suppose this was one of the worst outages in AWS history, and it had significant impact across many internet services, products and platforms. And sadly for many of us Indians it happened on a Diwali day, and we were barely trying to keep the lights on on this festival of lights. The [AWS's public RCA](https://aws.amazon.com/message/101925/) is dense, and in PDT, so these are my notes(accurate to the best of my knowledge), concise and the timeline is in IST.
 
 ## Timeline (Converted to IST)
@@ -268,6 +270,41 @@ Once the plan database was inconsistent:
 * Engineers had to manually restore a valid DNS record set into Route 53 to bring `dynamodb.us-east-1.amazonaws.com` back online.
 
 > **DISCLAIMER:** I am somehow not really satisfied with the above explanation myself, but I will try to update with a better one.
+
+### Ruling out cyclic dependency
+
+Here’s how the dependency boundaries work:
+
+| Layer                              | Data / State Backend                                                               | Depends on DynamoDB? | Notes                                                                                                                              |
+| ---------------------------------- | ---------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **DNS Planner / Enactor system**   | Its own internal control store (likely replicated metadata DB or internal service) | No                 | Designed to stay operational even if any regional database service—including DynamoDB—is impaired.                                 |
+| **Route 53**                       | Route 53’s own authoritative DNS infrastructure                                    | No                 | Route 53 is independent; DNS updates go through Route 53 APIs, not through DynamoDB.                                               |
+| **DynamoDB service control plane** | The DNS Planner/Enactor automation we’re discussing                                | Yes (indirectly)   | DynamoDB’s *own* DNS endpoints depend on that automation to advertise the service, but the automation itself doesn’t use DynamoDB. |
+
+#### So there’s no circular loop like:
+
+```
+DynamoDB → DNS system → DynamoDB
+```
+
+If that were the case, the service could never bootstrap DNS during a recovery.
+AWS explicitly stated that the **DNS Enactor “is designed to have minimal dependencies to allow for system recovery in any scenario.”**
+That line is their assurance that the Enactor can still run, update Route 53, and heal DNS even if DynamoDB itself is degraded.
+
+#### The boundary instead looks like
+
+```
+[DynamoDB DNS automation system]
+        │
+        └── writes → Route 53  (to publish dynamodb.us-east-1.amazonaws.com)
+
+DynamoDB’s own API servers ←── depend on DNS working
+```
+
+So it’s a **one-way dependency**:
+DynamoDB depends on the DNS system, but the DNS system doesn’t depend on DynamoDB.
+
+That one-way design is what prevented a true circular dependency and allowed AWS engineers to restore the Route 53 records manually when automation got stuck.
 
 ---
 
