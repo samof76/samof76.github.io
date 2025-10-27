@@ -2,9 +2,12 @@
 layout: post
 title: AWS's Diwali Damaka
 category: aws, outage, rca
+mermaid: true
 ---
 
 > **UPDATE:** Added some lingering questions at the end of this. May be there will be more added, but added those that are most pertinent to this issue.
+
+> **UPDATE2:** Adding ways in which applications could have failed.
 
 I suppose this was one of the worst outages in AWS history, and it had significant impact across many internet services, products and platforms. And sadly for many of us Indians it happened on a Diwali day, and we were barely trying to keep the lights on on this festival of lights. The [AWS's public RCA](https://aws.amazon.com/message/101925/) is dense, and in PDT, so these are my notes(accurate to the best of my knowledge), concise and the timeline is in IST.
 
@@ -284,11 +287,11 @@ Here’s how the dependency boundaries work:
 #### So there’s no circular loop like:
 
 ```
-DynamoDB → DNS system → DynamoDB
+DynamoDB -> DNS system -> DynamoDB
 ```
 
 If that were the case, the service could never bootstrap DNS during a recovery.
-AWS explicitly stated that the **DNS Enactor “is designed to have minimal dependencies to allow for system recovery in any scenario.”**
+AWS explicitly stated that the **DNS Enactor "is designed to have minimal dependencies to allow for system recovery in any scenario."**
 That line is their assurance that the Enactor can still run, update Route 53, and heal DNS even if DynamoDB itself is degraded.
 
 #### The boundary instead looks like
@@ -296,7 +299,7 @@ That line is their assurance that the Enactor can still run, update Route 53, an
 ```
 [DynamoDB DNS automation system]
         │
-        └── writes → Route 53  (to publish dynamodb.us-east-1.amazonaws.com)
+        └── writes -> Route 53  (to publish dynamodb.us-east-1.amazonaws.com)
 
 DynamoDB’s own API servers ←── depend on DNS working
 ```
@@ -314,14 +317,74 @@ That one-way design is what prevented a true circular dependency and allowed AWS
 Was it CPU contention, Route 53 API throttling, network saturation, or a dependency stall?
 Understanding *why* the first Enactor lagged is crucial — without that trigger, the race condition might never have materialized.
 
-### Why did the Enactor’s “freshness check” not re-validate before committing?
+### Why did the Enactor’s "freshness check" not re-validate before committing?
 The Enactor verified plan freshness only once at start.
 Shouldn’t there be a re-validation step right before applying, especially if processing is delayed?
 
 ### Why wasn’t there a safeguard preventing deletion of the *currently active* plan?
-Cleanup logic deleted all “old” plans, including the one still live.
+Cleanup logic deleted all "old" plans, including the one still live.
 Should the system have tracked which plan is currently serving traffic before deletion?
 
 ### Why did dependent control planes (EC2 DWFM, Network Manager, NLB health checks) lack graceful degradation when DynamoDB failed?
 Each subsystem cascaded failure instead of isolating or caching state.
 Could stronger local caching or fallback mechanisms have prevented the multi-hour recovery chain?
+
+## How could have applications failed?
+
+Though this list is not exhaustive, it highlights several potential failure points, and keep in mind that there might have been other subtle, cascading, or hidden dependencies
+
+#### Internal AWS dependencies you don’t see
+
+* **Your AWS SDK / CLI / Terraform / CloudFormation** calls fail because *they* rely on STS, IAM, or Route 53 DNS resolution — not just your own APIs.
+* **KMS-encrypted parameters/secrets** (SSM Parameter Store, Secrets Manager, EBS, RDS, Lambda env vars) can’t decrypt if KMS or STS throttles.
+* **Cross-service dependency loops** inside AWS (e.g., EC2 control plane -> DynamoDB -> DNS) ripple outward even if your app never touches DynamoDB directly.
+
+#### Region-specific metadata and bootstrap
+
+* EC2 **IMDSv2** (instance metadata) transient failures break apps that fetch credentials or configuration at startup.
+* **User-data scripts or agents** stuck on first boot (can’t reach S3/Yum repos for bootstrap).
+* **Auto Scaling Groups** endlessly retry instance launches due to control-plane API limits -> cascading retries -> cost spikes.
+
+#### Cached credentials and token expiry
+
+* **STS tokens** cached in app containers expire mid-outage -> background workers suddenly lose access to S3, KMS, or DynamoDB.
+* **ECS task roles** or **IRSA** (IAM Roles for Service Accounts) fail token refresh when IAM / STS is degraded.
+
+#### DNS & caching oddities
+
+* **Resolvers caching NXDOMAINs** from transient Route 53 responses -> self-sustaining blackholes until TTLs expire.
+* **Split-horizon DNS** (internal vs. public zones) becomes inconsistent when one zone updates and the other lags.
+* **Long TTLs on service endpoints** keep pointing clients to unhealthy IPs long after AWS recovers.
+
+#### Cross-region replication drift
+
+* **S3 CRR / DynamoDB Global Tables / RDS read replicas** silently accumulate backlog -> hours/days of delayed sync.
+* **CloudWatch cross-region metrics** or alarms show stale data -> false negatives in monitoring.
+
+#### Control-plane and data-plane mismatch
+
+* Data-plane still fine (e.g., existing EC2s run), but control-plane APIs (EC2 Describe, Stop, Attach, EBS) hang — blocking scale-out, failover, or CI/CD.
+* **EKS nodes** remain healthy but new pods can’t attach ENIs or mount EBS -> perceived "partial" outage.
+
+#### Authentication and third-party linkages
+
+* **OIDC / SAML / Cognito / Identity Center** failures break your SaaS admin login portal.
+* **External integrations** (e.g., Slack, Salesforce, Stripe) that fetch data from your AWS endpoints time out -> customer impact despite your core infra surviving.
+
+#### Observability blind spots
+
+* **CloudWatch metrics delayed**, so autoscalers or anomaly detectors react too late.
+* **Centralized logging in OpenSearch/S3** pauses ingestion -> on-call engineers lack visibility during the outage itself.
+
+#### Internal service throttling feedback
+
+* One microservice retries aggressively -> SQS/Kinesis backlog grows -> Lambda concurrency exhaustion -> regional throttling cascade.
+
+#### Recovery edge cases
+
+* After AWS restores APIs, your system comes back *out of order*:
+  * orphaned EC2 instances, zombie pods, duplicate Kafka consumers, stale DNS caches.
+  * background replayers (e.g., queue drainers) overshoot and create **write storms**.
+
+### In short:
+Even if your app’s direct dependencies look simple (EKS + RDS + S3 + Redis), hidden edges like **credential refresh, DNS caching, cross-region replication, and control-plane lag** can still create nonlinear failures.
