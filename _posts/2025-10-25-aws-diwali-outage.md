@@ -387,4 +387,4 @@ Though this list is not exhaustive, it highlights several potential failure poin
   * background replayers (e.g., queue drainers) overshoot and create **write storms**.
 
 ### In short:
-Even if your app’s direct dependencies look simple (EKS + RDS + S3 + Redis), hidden edges like **credential refresh, DNS caching, cross-region replication, and control-plane lag** can still create nonlinear failures.
+Even if your app’s direct dependencies look simple (EKS + RDS + S3 + ElastiCache), hidden edges like **credential refresh, DNS caching, cross-region replication, and control-plane lag** can still create nonlinear failures.
