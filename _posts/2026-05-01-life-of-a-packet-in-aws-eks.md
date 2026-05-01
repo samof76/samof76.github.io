@@ -5,8 +5,6 @@ category: aws, eks, network
 mermaid: true
 ---
 
-# Life of a Packet in Amazon EKS
-
 If you already know Kubernetes architecture, skip to section 3.
 
 ---
