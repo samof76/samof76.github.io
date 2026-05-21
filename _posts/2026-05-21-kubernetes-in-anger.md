@@ -5,6 +5,8 @@ category: kubernetes, eks, troubleshooting
 mermaid: true
 ---
 
+> NOTE: Any discussions can be had on [Lobsters](https://lobste.rs/s/iggblv/kubernetes_anger)
+
 ## 0. Quick start (emergency edition)
 
 ### Is this the right guide?
