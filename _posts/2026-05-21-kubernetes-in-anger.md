@@ -22,11 +22,11 @@ mermaid: true
 
 ### Emergency shortcuts
 
-**Cluster is on fire right now?** → Jump to [Section 11.1 Tier-0 Triage Table](#111-tier-0-triage-table)
+**Cluster is on fire right now?** → Jump to [Section 2.10 Tier-0 Incident Playbook](#210-what-to-do-when-a-tier-0-component-is-unhealthy-eks-incident-playbook)
 
-**Need to upgrade safely?** → Jump to [Section 6 EKS Upgrade & Change Management](#6-eks-upgrade--change-management)
+**Need to upgrade safely?** → Jump to [Section 8 Upgrades and maintenance](#8-upgrades-and-maintenance)
 
-**Investigating an incident?** → Start with [Section 1.2 Quick Cluster Health Snapshot](#12-quick-cluster-health-snapshot)
+**Investigating an incident?** → Start with [Section 1.2 Quick Cluster Health Snapshot](#12-quick-cluster-health-snapshot-30-seconds)
 
 ### Prerequisites
 
@@ -103,7 +103,7 @@ So the actual first job is: figure out where the problem is, fast enough that yo
 * AWS integration (CNI / LB / EBS)?
 * An upstream dependency (RDS, Redis, external APIs)?
 
-Once you know the failure domain, you mitigate (rollback, drain, upsize, block — see [generic mitigations](generic_mitigations_by_system.md)). Root cause comes after the incident is contained.
+Once you know the failure domain, you mitigate (rollback, drain, upsize, block). Root cause comes after the incident is contained.
 
 What follows is a reliable entry sequence to get that signal fast, without guessing.
 
@@ -1148,7 +1148,7 @@ kubectl -n kube-system logs -l k8s-app=aws-node --tail=200
 
 **C) NAT idle timeout / keepalive mismatch → random outbound resets (egress path)**
 
-Same 350s idle timeout as NLB, but on the egress path. See [Section 2.5.2](#252-nat-idle-timeout--keep-alive-egress-connection-resets) for full detail.
+Same 350s idle timeout as NLB, but on the egress path. See [Section 2.5.2](#252-nat-idle-timeout-keep-alive-egress-connection-resets) for full detail.
 
 **Safe actions**
 
@@ -1828,7 +1828,7 @@ metadata:
 
 #### 3.5.2 NLB Connection Tracking and Keep-Alive
 
-The NLB idle timeout problem and TCP keepalive fix are covered in detail in [Section 2.5.1](#251-nlb-idle-timeout--keep-alive-silent-connection-kill). This section adds the language-specific code examples.
+The NLB idle timeout problem and TCP keepalive fix are covered in detail in [Section 2.5.1](#251-nlb-idle-timeout-keep-alive-silent-connection-kill). This section adds the language-specific code examples.
 
 **For HTTP clients (Python):**
 ```python
