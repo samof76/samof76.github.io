@@ -502,18 +502,21 @@ echo "Attach this directory to your incident ticket"
 **What to capture for specific failure types**
 
 **DNS/CoreDNS issues**
+
 ```bash
 kubectl -n kube-system logs -l k8s-app=kube-dns --tail=500 > coredns-logs.txt
 kubectl -n kube-system get pods -l k8s-app=kube-dns -o yaml > coredns-pods.yaml
 ```
 
 **CNI/Networking issues**
+
 ```bash
 kubectl -n kube-system logs -l k8s-app=aws-node --tail=500 > aws-node-logs.txt
 kubectl get pods -A -o wide | grep -E "ContainerCreating|Pending" > stuck-pods.txt
 ```
 
 **Node-specific issues**
+
 ```bash
 # Replace NODE_NAME with actual node
 kubectl describe node NODE_NAME > node-describe.txt
@@ -539,6 +542,7 @@ These look like EKS issues but usually aren't:
 - Your kubeconfig pointing to wrong cluster/region
 
 **Quick check:**
+
 ```bash
 time kubectl get nodes
 # Should complete in <2 seconds for healthy cluster
@@ -558,6 +562,7 @@ time kubectl get nodes
 - Missing dependencies (DB, Redis, etc.)
 
 **Quick check:**
+
 ```bash
 kubectl describe pod POD_NAME
 # Look at "Last State" and "Reason"
@@ -579,6 +584,7 @@ kubectl describe pod POD_NAME
 - Network policies blocking traffic
 
 **Quick check:**
+
 ```bash
 # Test DNS resolution from inside a pod
 kubectl exec -it POD_NAME -- nslookup SERVICE_NAME.NAMESPACE.svc.cluster.local
@@ -1279,6 +1285,7 @@ Pod density isn't just CPU/memory limited — it's bounded by ENI limits and eit
 **A) IP Exhaustion (Pods stuck in Pending)**
 
 **Symptoms:**
+
 ```bash
 kubectl get pods -A | grep Pending
 kubectl describe pod <pod> | grep -i "failed to allocate"
@@ -1291,6 +1298,7 @@ kubectl describe pod <pod> | grep -i "failed to allocate"
 * ENI limits reached without prefix delegation
 
 **Quick diagnosis:**
+
 ```bash
 # Check available IPs in subnet
 aws ec2 describe-subnets --subnet-ids <subnet-id>
@@ -1310,6 +1318,7 @@ kubectl -n kube-system logs -l k8s-app=aws-node --tail=100
 * CNI timeouts during pod creation
 
 **Quick diagnosis:**
+
 ```bash
 kubectl -n kube-system logs -l k8s-app=aws-node | grep -i "eni\|attach\|interface"
 ```
@@ -1342,6 +1351,7 @@ kubectl -n kube-system describe daemonset aws-node
 * `MAX_ENI`: Limits ENI usage per node
 
 **Production tuning example:**
+
 ```yaml
 env:
 - name: ENABLE_PREFIX_DELEGATION
@@ -1384,6 +1394,7 @@ DNS failures in Kubernetes don't just break service discovery—they cascade int
 6. Cascade failure across services
 
 **Symptoms:**
+
 ```bash
 # DNS timeouts in application logs
 kubectl logs <app-pod> | grep -i "dns\|resolve\|timeout"
@@ -1404,6 +1415,7 @@ kubectl -n kube-system logs -l k8s-app=kube-dns | grep -E "NXDOMAIN|timeout|erro
 * DNS queries in tight loops
 
 **Example of problematic application behavior:**
+
 ```python
 # BAD: DNS lookup on every request
 def make_request():
@@ -1422,11 +1434,13 @@ def make_request():
 #### 3.3.3 CoreDNS Scaling and Distribution
 
 **Horizontal scaling:**
+
 ```bash
 kubectl -n kube-system scale deployment coredns --replicas=5
 ```
 
 **Anti-affinity to spread CoreDNS pods:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -1473,6 +1487,7 @@ For clusters with heavy DNS load, NodeLocal DNSCache runs a DNS cache on each no
 **The ndots problem:** By default, Kubernetes sets `ndots:5` in `/etc/resolv.conf`, causing excessive DNS queries for external domains.
 
 **Default behavior analysis:**
+
 ```bash
 # Inside a pod, resolving "google.com" triggers these queries:
 # 1. google.com.default.svc.cluster.local
@@ -1484,6 +1499,7 @@ For clusters with heavy DNS load, NodeLocal DNSCache runs a DNS cache on each no
 ```
 
 **Impact on AWS linklocal limits:**
+
 ```bash
 # Each failed query hits 169.254.169.254 (AWS DNS resolver)
 # With ndots:5, external domains generate 6x DNS traffic
@@ -1491,6 +1507,7 @@ For clusters with heavy DNS load, NodeLocal DNSCache runs a DNS cache on each no
 ```
 
 **Optimized ndots configuration:**
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -1509,6 +1526,7 @@ spec:
 ```
 
 **Application-specific DNS optimization:**
+
 ```yaml
 # For apps that primarily call external services
 apiVersion: apps/v1
@@ -1540,6 +1558,7 @@ These are not DNS topics, but connection-level tuning is commonly needed alongsi
 **Root cause:** When services receive more concurrent connection attempts than the listen backlog can queue, connections are dropped at the kernel level.
 
 **Solution - Configure via sysctls:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -1560,6 +1579,7 @@ spec:
 ```
 
 **Monitor listen backlog with sidecar pattern:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -1594,6 +1614,7 @@ spec:
 ```
 
 **Prometheus alerts for listen backlog issues:**
+
 ```yaml
 groups:
 - name: listen-backlog
@@ -1618,6 +1639,7 @@ groups:
 **Problem:** Slow clients can exhaust thread/process pools in request-per-thread models.
 
 **Attack vector simulation:**
+
 ```bash
 # Simulate slow client sending 10KB slowly (1 byte per second)
 (echo -e -n 'POST /api HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10000\r\n\r\n'; 
@@ -1626,6 +1648,7 @@ groups:
 ```
 
 **Solution - Reverse proxy with buffering:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -1682,6 +1705,7 @@ spec:
 ```
 
 **Envoy configuration for slow client protection:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -1752,6 +1776,7 @@ Envoy sidecar hits CPU/memory limits under load, causing:
 * Circuit breaker activation
 
 **Diagnosis:**
+
 ```bash
 # Check sidecar resource usage
 kubectl top pods --containers | grep envoy
@@ -1761,6 +1786,7 @@ kubectl exec <pod> -c istio-proxy -- curl localhost:15000/stats | grep -E "cx_|r
 ```
 
 **Tuning:**
+
 ```yaml
 metadata:
   annotations:
@@ -1778,6 +1804,7 @@ metadata:
 * Services work sometimes, fail other times
 
 **Diagnosis:**
+
 ```bash
 # Check certificate expiration
 kubectl exec <pod> -c istio-proxy -- openssl s_client -connect <service>:443 -servername <service> < /dev/null 2>/dev/null | openssl x509 -noout -dates
@@ -1804,6 +1831,7 @@ kubectl exec <pod> -c istio-proxy -- curl localhost:15000/stats | grep ssl
 * Pod readiness probe vs ALB health check mismatch
 
 **Diagnosis:**
+
 ```bash
 # Check ALB target group health
 aws elbv2 describe-target-health --target-group-arn <arn>
@@ -1816,6 +1844,7 @@ kubectl -n kube-system logs deployment/aws-load-balancer-controller
 ```
 
 **Fix patterns:**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -1833,6 +1862,7 @@ metadata:
 The NLB idle timeout problem and TCP keepalive fix are covered in detail in [Section 2.5.1](#251-nlb-idle-timeout-keep-alive-silent-connection-kill). This section adds the language-specific code examples.
 
 **For HTTP clients (Python):**
+
 ```python
 import requests
 from requests.adapters import HTTPAdapter
@@ -1851,6 +1881,7 @@ session.mount("https://", adapter)
 ```
 
 **For gRPC (Python):**
+
 ```python
 import grpc
 
@@ -1873,6 +1904,7 @@ Network policies in EKS require a CNI that supports them (like Calico). When the
 #### 3.6.1 Common Network Policy Mistakes
 
 **Mistake 1: Blocking DNS**
+
 ```yaml
 # BAD: This blocks DNS resolution
 apiVersion: networking.k8s.io/v1
@@ -1888,6 +1920,7 @@ spec:
 ```
 
 **Fix: Always allow DNS**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -1907,6 +1940,7 @@ spec:
 ```
 
 **Mistake 2: Forgetting about health checks**
+
 ```yaml
 # Need to allow kubelet health checks
 apiVersion: networking.k8s.io/v1
@@ -1927,6 +1961,7 @@ spec:
 #### 3.6.2 Debugging Network Policy Issues
 
 **Test connectivity between pods:**
+
 ```bash
 # From source pod to target pod
 kubectl exec -it <source-pod> -- nc -zv <target-pod-ip> <port>
@@ -1940,6 +1975,7 @@ kubectl describe networkpolicy <policy-name>
 ```
 
 **Calico-specific debugging:**
+
 ```bash
 # Check Calico policy status
 kubectl exec -n kube-system <calico-node-pod> -- calicoctl get policy -o wide
@@ -1967,6 +2003,7 @@ kubectl -n kube-system logs -l k8s-app=calico-node
 #### 3.7.2 Topology Spread Constraints for Network Optimization
 
 **Spread pods across AZs for availability:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -1986,6 +2023,7 @@ spec:
 ```
 
 **Keep related services in same AZ:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -2014,6 +2052,7 @@ spec:
 #### 3.8.1 Layer-by-Layer Debugging
 
 **Step 1: Pod-to-Pod IP connectivity**
+
 ```bash
 # Get pod IPs
 kubectl get pods -o wide
@@ -2026,6 +2065,7 @@ kubectl exec -it <source-pod> -- nc -zv <target-pod-ip> <port>
 ```
 
 **Step 2: Service discovery**
+
 ```bash
 # Test DNS resolution
 kubectl exec -it <pod> -- nslookup <service-name>.<namespace>.svc.cluster.local
@@ -2035,6 +2075,7 @@ kubectl exec -it <pod> -- curl <service-name>.<namespace>.svc.cluster.local:<por
 ```
 
 **Step 3: Ingress/Load balancer**
+
 ```bash
 # Check ingress status
 kubectl get ingress
@@ -2047,6 +2088,7 @@ curl -v http://<load-balancer-dns>/health
 #### 3.8.2 Network Debugging Tools
 
 **Essential tools to have in debug pods:**
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -2064,6 +2106,7 @@ spec:
 ```
 
 **Useful commands in debug pod:**
+
 ```bash
 # Network interface info
 ip addr show
@@ -2087,6 +2130,7 @@ telnet <host> <port>
 #### 3.8.3 Performance Testing and Monitoring
 
 **Network performance testing:**
+
 ```bash
 # Bandwidth testing between pods
 kubectl exec -it <pod1> -- iperf3 -s &
@@ -2120,6 +2164,7 @@ kubectl exec -it <pod1> -- ping -c 100 <pod2-ip>
 * Good for micro-segmentation within cluster
 
 **Best practice: Use both layers**
+
 ```yaml
 # Network policy for pod-to-pod
 apiVersion: networking.k8s.io/v1
@@ -2187,28 +2232,33 @@ spec:
 **Symptoms:** Application can't reach another service
 
 **Step 1: Verify service exists and has endpoints**
+
 ```bash
 kubectl get svc <service-name>
 kubectl get endpoints <service-name>
 ```
 
 **Step 2: Test DNS resolution**
+
 ```bash
 kubectl exec -it <pod> -- nslookup <service-name>.<namespace>.svc.cluster.local
 ```
 
 **Step 3: Test direct IP connectivity**
+
 ```bash
 kubectl exec -it <pod> -- nc -zv <endpoint-ip> <port>
 ```
 
 **Step 4: Check network policies**
+
 ```bash
 kubectl get networkpolicy -n <namespace>
 kubectl describe networkpolicy <policy-name>
 ```
 
 **Step 5: Check security groups (if using pod security groups)**
+
 ```bash
 aws ec2 describe-security-groups --group-ids <sg-id>
 ```
@@ -2218,28 +2268,33 @@ aws ec2 describe-security-groups --group-ids <sg-id>
 **Symptoms:** DNS timeouts, slow service discovery
 
 **Step 1: Check CoreDNS health**
+
 ```bash
 kubectl -n kube-system get pods -l k8s-app=kube-dns
 kubectl -n kube-system logs -l k8s-app=kube-dns --tail=100
 ```
 
 **Step 2: Test DNS from multiple pods**
+
 ```bash
 kubectl exec -it <pod1> -- time nslookup kubernetes.default.svc.cluster.local
 kubectl exec -it <pod2> -- time nslookup kubernetes.default.svc.cluster.local
 ```
 
 **Step 3: Check DNS query patterns**
+
 ```bash
 kubectl -n kube-system logs -l k8s-app=kube-dns | grep -E "NXDOMAIN|timeout" | tail -20
 ```
 
 **Step 4: Monitor CoreDNS resource usage**
+
 ```bash
 kubectl -n kube-system top pods -l k8s-app=kube-dns
 ```
 
 **Step 5: Scale CoreDNS if needed**
+
 ```bash
 kubectl -n kube-system scale deployment coredns --replicas=<new-count>
 ```
@@ -2249,6 +2304,7 @@ kubectl -n kube-system scale deployment coredns --replicas=<new-count>
 **Symptoms:** External traffic can't reach services
 
 **Step 1: Check ingress/service status**
+
 ```bash
 kubectl get ingress
 kubectl describe ingress <ingress-name>
@@ -2256,21 +2312,25 @@ kubectl get svc <service-name>
 ```
 
 **Step 2: Check AWS Load Balancer Controller**
+
 ```bash
 kubectl -n kube-system logs deployment/aws-load-balancer-controller
 ```
 
 **Step 3: Verify target group health**
+
 ```bash
 aws elbv2 describe-target-health --target-group-arn <arn>
 ```
 
 **Step 4: Test internal connectivity**
+
 ```bash
 kubectl exec -it <debug-pod> -- curl <service-name>:<port>/health
 ```
 
 **Step 5: Check security group rules**
+
 ```bash
 aws ec2 describe-security-groups --group-ids <alb-sg-id>
 ```
@@ -2311,6 +2371,7 @@ IRSA is how pods get AWS permissions without embedding long-lived credentials. W
 **A) "Access Denied" but IAM role looks correct**
 
 **Symptoms:**
+
 ```
 AccessDenied: User: arn:aws:sts::123456789012:assumed-role/eksctl-my-cluster-nodegroup-NodeInstanceRole-XXXXX/i-1234567890abcdef0 is not authorized to perform: s3:GetObject
 ```
@@ -2318,6 +2379,7 @@ AccessDenied: User: arn:aws:sts::123456789012:assumed-role/eksctl-my-cluster-nod
 **Root cause:** Pod is using node IAM role instead of IRSA role
 
 **Diagnosis:**
+
 ```bash
 # Check if ServiceAccount has IRSA annotation
 kubectl describe sa <service-account-name>
@@ -2337,6 +2399,7 @@ aws iam list-open-id-connect-providers
 * Missing `/var/run/secrets/eks.amazonaws.com/serviceaccount/token`
 
 **Diagnosis:**
+
 ```bash
 # Check if token is mounted
 kubectl exec <pod-name> -- ls -la /var/run/secrets/eks.amazonaws.com/serviceaccount/
@@ -2350,11 +2413,13 @@ kubectl exec <pod-name> -- cat /var/run/secrets/eks.amazonaws.com/serviceaccount
 **Correct IRSA setup:**
 
 1. **Create OIDC provider (one-time per cluster):**
+
 ```bash
 eksctl utils associate-iam-oidc-provider --cluster <cluster-name> --approve
 ```
 
 2. **Create IAM role with trust policy:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -2377,6 +2442,7 @@ eksctl utils associate-iam-oidc-provider --cluster <cluster-name> --approve
 ```
 
 3. **Annotate ServiceAccount:**
+
 ```yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -2388,6 +2454,7 @@ metadata:
 ```
 
 4. **Use ServiceAccount in pod:**
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -2401,6 +2468,7 @@ spec:
 ```
 
 **Validation script:**
+
 ```bash
 #!/bin/bash
 # Test IRSA setup
@@ -2438,12 +2506,14 @@ Pod Security Policies (PSPs) are deprecated. Pod Security Standards are the repl
 **A) Pods rejected by admission controller**
 
 **Symptoms:**
+
 ```
 Error creating: pods "my-pod" is forbidden: violates PodSecurity "restricted:latest": 
 allowPrivilegeEscalation != false, unrestricted capabilities, runAsNonRoot != true
 ```
 
 **Fix patterns:**
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -2475,6 +2545,7 @@ spec:
 * App runs as root by default
 
 **Debugging approach:**
+
 ```bash
 # Check pod security context
 kubectl describe pod <pod-name> | grep -A 20 "Security Context"
@@ -2514,6 +2585,7 @@ Kubernetes Secrets are base64 encoded, not encrypted at rest by default, and vis
 #### 4.3.1 AWS Secrets Manager Integration
 
 **Using AWS Load Balancer Controller with Secrets Manager:**
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -2525,6 +2597,7 @@ type: Opaque
 ```
 
 **Using External Secrets Operator:**
+
 ```yaml
 apiVersion: external-secrets.io/v1beta1
 kind: SecretStore
@@ -2566,6 +2639,7 @@ spec:
 #### 4.3.2 Secrets CSI Driver
 
 **Mount secrets as volumes:**
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -2606,6 +2680,7 @@ spec:
 #### 4.3.3 Secrets Rotation and Lifecycle
 
 **Automatic rotation with External Secrets:**
+
 ```yaml
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
@@ -2626,6 +2701,7 @@ spec:
 ```
 
 **Monitoring secrets rotation:**
+
 ```bash
 # Check External Secrets status
 kubectl get externalsecrets
@@ -2669,6 +2745,7 @@ spec:
 #### 4.4.2 Network Policies for Micro-segmentation
 
 **Default deny all traffic:**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -2682,6 +2759,7 @@ spec:
 ```
 
 **Allow specific service communication:**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -2704,6 +2782,7 @@ spec:
 ```
 
 **Always allow DNS and health checks:**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -2737,6 +2816,7 @@ spec:
 #### 4.5.1 Image Scanning and Vulnerability Management
 
 **ECR image scanning:**
+
 ```bash
 # Enable scan on push
 aws ecr put-image-scanning-configuration --repository-name myapp --image-scanning-configuration scanOnPush=true
@@ -2749,6 +2829,7 @@ aws ecr describe-image-scan-findings --repository-name myapp --image-id imageTag
 ```
 
 **Admission controller for image scanning:**
+
 ```yaml
 apiVersion: v1
 kind: ValidatingAdmissionWebhook
@@ -2771,6 +2852,7 @@ webhooks:
 #### 4.5.2 Image Signing and Verification
 
 **Using Cosign for image signing:**
+
 ```bash
 # Sign image
 cosign sign --key cosign.key myregistry/myapp:v1.0.0
@@ -2780,6 +2862,7 @@ cosign verify --key cosign.pub myregistry/myapp:v1.0.0
 ```
 
 **Policy enforcement with Gatekeeper:**
+
 ```yaml
 apiVersion: templates.gatekeeper.sh/v1beta1
 kind: ConstraintTemplate
@@ -2819,6 +2902,7 @@ spec:
 #### 4.6.1 EKS Audit Logging Configuration
 
 **Enable audit logging:**
+
 ```bash
 aws eks update-cluster-config \
   --name my-cluster \
@@ -2826,6 +2910,7 @@ aws eks update-cluster-config \
 ```
 
 **Audit policy for security events:**
+
 ```yaml
 apiVersion: audit.k8s.io/v1
 kind: Policy
@@ -2860,6 +2945,7 @@ rules:
 * Image pull failures from untrusted registries
 
 **Example Prometheus alerts:**
+
 ```yaml
 groups:
 - name: kubernetes-security
@@ -2888,24 +2974,28 @@ groups:
 **Symptoms:** AWS API calls failing with permission errors
 
 **Step 1: Verify IRSA setup**
+
 ```bash
 kubectl describe sa <service-account> | grep eks.amazonaws.com/role-arn
 kubectl describe pod <pod> | grep "Service Account"
 ```
 
 **Step 2: Check token projection**
+
 ```bash
 kubectl exec <pod> -- ls -la /var/run/secrets/eks.amazonaws.com/serviceaccount/
 kubectl exec <pod> -- aws sts get-caller-identity
 ```
 
 **Step 3: Verify IAM role and policies**
+
 ```bash
 aws iam get-role --role-name <irsa-role-name>
 aws iam list-attached-role-policies --role-name <irsa-role-name>
 ```
 
 **Step 4: Test permissions**
+
 ```bash
 kubectl exec <pod> -- aws s3 ls  # Or whatever AWS service you're trying to access
 ```
@@ -2915,16 +3005,19 @@ kubectl exec <pod> -- aws s3 ls  # Or whatever AWS service you're trying to acce
 **Symptoms:** Pod creation fails with security policy violations
 
 **Step 1: Check namespace security labels**
+
 ```bash
 kubectl get namespace <namespace> -o yaml | grep pod-security
 ```
 
 **Step 2: Identify specific violations**
+
 ```bash
 kubectl describe pod <pod> | grep -A 10 "violates PodSecurity"
 ```
 
 **Step 3: Fix security context**
+
 ```bash
 # Check current security context
 kubectl get pod <pod> -o jsonpath='{.spec.securityContext}'
@@ -2938,24 +3031,28 @@ kubectl get pod <pod> -o jsonpath='{.spec.containers[*].securityContext}'
 **Symptoms:** Application using old secret values
 
 **Step 1: Check External Secrets status**
+
 ```bash
 kubectl get externalsecrets
 kubectl describe externalsecret <name>
 ```
 
 **Step 2: Verify secret store connectivity**
+
 ```bash
 kubectl get secretstore
 kubectl describe secretstore <name>
 ```
 
 **Step 3: Check AWS Secrets Manager**
+
 ```bash
 aws secretsmanager describe-secret --secret-id <secret-name>
 aws secretsmanager get-secret-value --secret-id <secret-name>
 ```
 
 **Step 4: Force refresh**
+
 ```bash
 kubectl annotate externalsecret <name> force-sync=$(date +%s)
 ```
@@ -2978,6 +3075,7 @@ kubectl annotate externalsecret <name> force-sync=$(date +%s)
 - Rolling updates cause 5xx errors
 
 **Best practices:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -3012,6 +3110,7 @@ spec:
 ```
 
 **Readiness probe endpoint implementation:**
+
 ```go
 // Go example
 func readinessHandler(w http.ResponseWriter, r *http.Request) {
@@ -3043,6 +3142,7 @@ func readinessHandler(w http.ResponseWriter, r *http.Request) {
 **When NOT to use:** If you don't know why you need it, don't configure it.
 
 **Best practices:**
+
 ```yaml
 containers:
 - name: app
@@ -3058,6 +3158,7 @@ containers:
 ```
 
 **Liveness probe implementation:**
+
 ```go
 func livenessHandler(w http.ResponseWriter, r *http.Request) {
     // Only check internal application health
@@ -3110,6 +3211,7 @@ containers:
 **Common probe failures:**
 
 1. **Readiness probe failing during load:**
+
 ```bash
 # Check probe configuration
 kubectl describe pod <pod-name>
@@ -3122,6 +3224,7 @@ kubectl exec <pod-name> -- curl -f http://localhost:8080/health/ready
 ```
 
 2. **Liveness probe causing restart loops:**
+
 ```bash
 # Check restart count
 kubectl get pods -o wide
@@ -3148,6 +3251,7 @@ kubectl patch deployment <deployment> -p '{
 ```
 
 3. **Startup probe preventing application start:**
+
 ```bash
 # Check startup probe status
 kubectl get pods -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].message}'
@@ -3203,6 +3307,7 @@ The EBS CSI driver is what makes persistent volumes work in EKS. When it fails, 
 **A) Pods stuck in ContainerCreating**
 
 **Symptoms:**
+
 ```bash
 kubectl get pods | grep ContainerCreating
 kubectl describe pod <pod-name>
@@ -3216,6 +3321,7 @@ kubectl describe pod <pod-name>
 * IAM permissions missing
 
 **Diagnosis:**
+
 ```bash
 # Check CSI components
 kubectl -n kube-system get pods | grep ebs-csi
@@ -3244,6 +3350,7 @@ aws ec2 describe-volumes --volume-ids <volume-id>
 4. Detachment can take 6+ minutes
 
 **Force detachment (emergency):**
+
 ```bash
 # Find the volume
 kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeHandle}'
@@ -3258,6 +3365,7 @@ kubectl delete volumeattachment <va-name>
 #### 5.1.3 EBS CSI Configuration and Tuning
 
 **Essential CSI controller configuration:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -3288,6 +3396,7 @@ spec:
 ```
 
 **Node plugin tuning for high-density workloads:**
+
 ```yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -3326,6 +3435,7 @@ spec:
 #### 5.2.1 Production Storage Class Configuration
 
 **GP3 with proper defaults:**
+
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -3346,6 +3456,7 @@ volumeBindingMode: WaitForFirstConsumer  # Critical for AZ placement
 ```
 
 **High-performance storage for databases:**
+
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -3376,6 +3487,7 @@ volumeBindingMode: WaitForFirstConsumer
 - Required for multi-AZ clusters
 
 **AZ mismatch failure example:**
+
 ```bash
 # PVC created with Immediate binding in us-west-2a
 kubectl get pv <pv-name> -o jsonpath='{.metadata.labels.topology\.ebs\.csi\.aws\.com/zone}'
@@ -3395,6 +3507,7 @@ kubectl get pod <pod-name> -o wide
 #### 5.3.1 StatefulSet Volume Management
 
 **Proper StatefulSet with volume claims:**
+
 ```yaml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -3446,6 +3559,7 @@ kubectl get pvc | grep database
 ```
 
 **Manual cleanup required:**
+
 ```bash
 # Delete orphaned PVCs (DANGEROUS - data loss!)
 kubectl delete pvc database-data-3 database-data-4
@@ -3457,6 +3571,7 @@ kubectl delete pvc database-data-3 database-data-4
 #### 5.3.3 StatefulSet Rolling Updates and Volume Safety
 
 **Safe rolling update configuration:**
+
 ```yaml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -3471,6 +3586,7 @@ spec:
 ```
 
 **Volume expansion during updates:**
+
 ```bash
 # Expand PVC (requires allowVolumeExpansion: true)
 kubectl patch pvc database-data-0 -p '{"spec":{"resources":{"requests":{"storage":"200Gi"}}}}'
@@ -3490,6 +3606,7 @@ kubectl delete pod database-0  # StatefulSet will recreate it
 #### 5.4.1 EBS Snapshot-Based Backups
 
 **Volume Snapshot Class:**
+
 ```yaml
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
@@ -3503,6 +3620,7 @@ parameters:
 ```
 
 **Creating snapshots:**
+
 ```yaml
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
@@ -3515,6 +3633,7 @@ spec:
 ```
 
 **Restoring from snapshot:**
+
 ```yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -3536,6 +3655,7 @@ spec:
 #### 5.4.2 Application-Consistent Backups
 
 **Pre/post hooks for database consistency:**
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -3558,6 +3678,7 @@ spec:
 #### 5.4.3 Cross-Region Backup Strategy
 
 **Automated cross-region snapshot copying:**
+
 ```bash
 #!/bin/bash
 # Copy EBS snapshots to DR region
@@ -3598,6 +3719,7 @@ done
 | io2 Block Express | 256,000 | 4,000 MB/s | Extreme performance |
 
 **Instance-level limits also apply:**
+
 ```bash
 # Check instance storage performance limits
 aws ec2 describe-instance-types \
@@ -3608,6 +3730,7 @@ aws ec2 describe-instance-types \
 #### 5.5.2 Storage Performance Monitoring
 
 **Key metrics to monitor:**
+
 ```yaml
 # Prometheus recording rules for storage
 groups:
@@ -3624,6 +3747,7 @@ groups:
 ```
 
 **Storage alerts:**
+
 ```yaml
 groups:
 - name: storage-alerts
@@ -3648,6 +3772,7 @@ groups:
 #### 5.5.3 Storage Capacity Management
 
 **Automatic PVC expansion:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -3680,6 +3805,7 @@ data:
 EBS volumes are AZ-specific and cannot be attached to instances in different AZs.
 
 **Impact on StatefulSets:**
+
 ```yaml
 # This will fail if pods get scheduled across AZs
 apiVersion: apps/v1
@@ -3698,6 +3824,7 @@ spec:
 ```
 
 **Solution - AZ-aware scheduling:**
+
 ```yaml
 apiVersion: apps/v1
 kind: StatefulSet
@@ -3722,6 +3849,7 @@ spec:
 #### 5.6.2 Cross-AZ Data Replication Patterns
 
 **For databases requiring cross-AZ replication:**
+
 ```yaml
 # Primary in us-west-2a
 apiVersion: apps/v1
@@ -3772,12 +3900,14 @@ spec:
 **Symptoms:** Pod won't start, stuck in ContainerCreating state
 
 **Step 1: Check pod events**
+
 ```bash
 kubectl describe pod <pod-name>
 # Look for: FailedMount, timeout, volume attachment errors
 ```
 
 **Step 2: Check PVC status**
+
 ```bash
 kubectl get pvc <pvc-name>
 kubectl describe pvc <pvc-name>
@@ -3785,6 +3915,7 @@ kubectl describe pvc <pvc-name>
 ```
 
 **Step 3: Check VolumeAttachment**
+
 ```bash
 kubectl get volumeattachment
 kubectl describe volumeattachment <va-name>
@@ -3792,6 +3923,7 @@ kubectl describe volumeattachment <va-name>
 ```
 
 **Step 4: Check CSI components**
+
 ```bash
 kubectl -n kube-system get pods | grep ebs-csi
 kubectl -n kube-system logs deployment/ebs-csi-controller
@@ -3799,6 +3931,7 @@ kubectl -n kube-system logs daemonset/ebs-csi-node -c ebs-plugin
 ```
 
 **Step 5: Check AWS EBS volume**
+
 ```bash
 # Get volume ID from PV
 kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeHandle}'
@@ -3813,12 +3946,14 @@ aws ec2 describe-volumes --volume-ids <volume-id>
 **Symptoms:** Long delays in pod startup, attachment timeout errors
 
 **Step 1: Identify stuck attachment**
+
 ```bash
 kubectl get volumeattachment -o wide
 # Look for old attachments with "Attaching" status
 ```
 
 **Step 2: Check if volume is stuck on dead node**
+
 ```bash
 aws ec2 describe-volumes --volume-ids <volume-id> \
   --query 'Volumes[0].Attachments'
@@ -3826,6 +3961,7 @@ aws ec2 describe-volumes --volume-ids <volume-id> \
 ```
 
 **Step 3: Force detachment (if safe)**
+
 ```bash
 # Verify the instance is really dead
 aws ec2 describe-instances --instance-ids <instance-id>
@@ -3838,6 +3974,7 @@ kubectl delete volumeattachment <va-name>
 ```
 
 **Step 4: Verify pod can start**
+
 ```bash
 kubectl get pod <pod-name>
 # Should transition to Running
@@ -3848,12 +3985,14 @@ kubectl get pod <pod-name>
 **Symptoms:** PVC shows larger size but pod still sees old size
 
 **Step 1: Check PVC conditions**
+
 ```bash
 kubectl describe pvc <pvc-name>
 # Look for: FileSystemResizePending, VolumeResizeSuccessful
 ```
 
 **Step 2: Check if pod restart is needed**
+
 ```bash
 # Some filesystems require pod restart to complete resize
 kubectl get pod <pod-name> -o jsonpath='{.metadata.creationTimestamp}'
@@ -3861,12 +4000,14 @@ kubectl get pvc <pvc-name> -o jsonpath='{.status.conditions[?(@.type=="FileSyste
 ```
 
 **Step 3: Restart pod if needed**
+
 ```bash
 kubectl delete pod <pod-name>
 # StatefulSet/Deployment will recreate it
 ```
 
 **Step 4: Verify expansion completed**
+
 ```bash
 kubectl exec <pod-name> -- df -h /data
 # Should show new size
@@ -3900,6 +4041,7 @@ You need metrics at multiple layers because EKS failures can happen at any level
 #### 6.1.2 Essential Metrics Components
 
 **Core Prometheus stack:**
+
 ```yaml
 # Prometheus server configuration
 apiVersion: v1
@@ -3952,6 +4094,7 @@ data:
 ```
 
 **Node exporter for system metrics:**
+
 ```yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -4012,6 +4155,7 @@ spec:
 #### 6.2.1 Control Plane Monitoring
 
 **API Server health:**
+
 ```yaml
 # Critical API server alerts
 groups:
@@ -4045,6 +4189,7 @@ groups:
 #### 6.2.2 Node-Level Monitoring
 
 **AWS-specific node metrics:**
+
 ```yaml
 # AWS ENA network limits
 groups:
@@ -4076,6 +4221,7 @@ groups:
 ```
 
 **Connection tracking monitoring:**
+
 ```yaml
 # Conntrack exhaustion alerts
 - alert: ConntrackTableFull
@@ -4098,6 +4244,7 @@ groups:
 #### 6.2.3 Pod and Container Monitoring
 
 **Container resource monitoring:**
+
 ```yaml
 # Container resource alerts
 groups:
@@ -4135,6 +4282,7 @@ groups:
 #### 6.3.1 CoreDNS Performance Monitoring
 
 **CoreDNS metrics collection:**
+
 ```yaml
 # CoreDNS monitoring
 - job_name: 'coredns'
@@ -4150,6 +4298,7 @@ groups:
 ```
 
 **CoreDNS alerts:**
+
 ```yaml
 groups:
 - name: coredns
@@ -4182,6 +4331,7 @@ groups:
 #### 6.3.2 Service Discovery Health Checks
 
 **Synthetic DNS monitoring:**
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -4223,6 +4373,7 @@ spec:
 #### 6.4.1 Load Balancer Monitoring
 
 **ALB/NLB CloudWatch metrics:**
+
 ```yaml
 # CloudWatch exporter configuration for ALB metrics
 apiVersion: v1
@@ -4258,6 +4409,7 @@ data:
 ```
 
 **Load balancer alerts:**
+
 ```yaml
 groups:
 - name: aws-loadbalancer
@@ -4290,6 +4442,7 @@ groups:
 #### 6.4.2 EBS and Storage Monitoring
 
 **EBS performance metrics:**
+
 ```yaml
 # EBS CloudWatch metrics
 - aws_namespace: AWS/EBS
@@ -4314,6 +4467,7 @@ groups:
 ```
 
 **Storage alerts:**
+
 ```yaml
 groups:
 - name: ebs-storage
@@ -4349,6 +4503,7 @@ groups:
 4. **Saturation** - Resource utilization
 
 **Application metrics instrumentation:**
+
 ```yaml
 # Example application with Prometheus metrics
 apiVersion: apps/v1
@@ -4374,6 +4529,7 @@ spec:
 ```
 
 **Golden signals alerts:**
+
 ```yaml
 groups:
 - name: golden-signals
@@ -4418,6 +4574,7 @@ groups:
 #### 6.5.2 Distributed Tracing Integration
 
 **Jaeger deployment for EKS:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -4449,6 +4606,7 @@ spec:
 #### 6.6.1 Centralized Logging Architecture
 
 **Fluent Bit for log collection:**
+
 ```yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -4486,6 +4644,7 @@ spec:
 ```
 
 **Fluent Bit configuration:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -4533,6 +4692,7 @@ data:
 #### 6.6.2 Log-Based Alerting
 
 **Critical log patterns to monitor:**
+
 ```yaml
 # Log-based alerts using Loki/Promtail
 groups:
@@ -4570,6 +4730,7 @@ groups:
 #### 6.7.1 EKS Incident Response Dashboard
 
 **Critical metrics for incident response:**
+
 ```json
 {
   "dashboard": {
@@ -4635,6 +4796,7 @@ groups:
 #### 6.7.2 Application Health Dashboard
 
 **Service-level indicators:**
+
 ```json
 {
   "dashboard": {
@@ -4685,6 +4847,7 @@ groups:
 **Symptoms:** Dashboards show no data, alerts not firing
 
 **Step 1: Check Prometheus targets**
+
 ```bash
 # Access Prometheus UI
 kubectl port-forward svc/prometheus 9090:9090
@@ -4694,6 +4857,7 @@ kubectl port-forward svc/prometheus 9090:9090
 ```
 
 **Step 2: Verify service discovery**
+
 ```bash
 # Check if services have correct annotations
 kubectl get svc -o yaml | grep -A 5 -B 5 prometheus.io
@@ -4703,6 +4867,7 @@ kubectl exec <pod-name> -- curl localhost:8080/metrics
 ```
 
 **Step 3: Check network connectivity**
+
 ```bash
 # Test connectivity from Prometheus pod
 kubectl exec prometheus-pod -- nc -zv <target-service> <port>
@@ -4713,6 +4878,7 @@ kubectl exec prometheus-pod -- nc -zv <target-service> <port>
 **Symptoms:** Known issues not triggering alerts
 
 **Step 1: Check alert rules**
+
 ```bash
 # Access Prometheus rules page
 # http://localhost:9090/rules
@@ -4722,6 +4888,7 @@ promtool check rules /path/to/rules.yml
 ```
 
 **Step 2: Check Alertmanager**
+
 ```bash
 kubectl logs deployment/alertmanager
 
@@ -4730,6 +4897,7 @@ kubectl get configmap alertmanager-config -o yaml
 ```
 
 **Step 3: Test alert conditions**
+
 ```bash
 # Query the alert condition directly in Prometheus
 # Example: up{job="kubernetes-apiservers"} == 0
@@ -4765,6 +4933,7 @@ Scaling failures show up as "the app is slow" when the real issue is resource co
 **A) HPA shows "unknown" metrics**
 
 **Symptoms:**
+
 ```bash
 kubectl get hpa
 # NAME     REFERENCE          TARGETS         MINPODS   MAXPODS   REPLICAS
@@ -4777,6 +4946,7 @@ kubectl get hpa
 * Metrics server can't reach kubelet
 
 **Diagnosis:**
+
 ```bash
 # Check metrics server
 kubectl -n kube-system get pods -l k8s-app=metrics-server
@@ -4803,6 +4973,7 @@ kubectl describe deployment web-app | grep -A 10 "Requests:"
 * Missing stabilization windows
 
 **Fix with stabilization:**
+
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -4840,6 +5011,7 @@ spec:
 #### 7.1.3 Custom Metrics Scaling
 
 **Scaling based on queue depth:**
+
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -4866,6 +5038,7 @@ spec:
 ```
 
 **Prometheus adapter configuration:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -4891,6 +5064,7 @@ data:
 #### 7.2.1 Cluster Autoscaler Configuration
 
 **Production CA configuration:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -4934,6 +5108,7 @@ spec:
 **A) Nodes not scaling up despite pending pods**
 
 **Symptoms:**
+
 ```bash
 kubectl get pods -A | grep Pending
 kubectl describe pod <pending-pod>
@@ -4947,6 +5122,7 @@ kubectl describe pod <pending-pod>
 * Taints/tolerations preventing scheduling
 
 **Diagnosis:**
+
 ```bash
 # Check CA logs
 kubectl -n kube-system logs deployment/cluster-autoscaler
@@ -4966,6 +5142,7 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A 
 * Frequent node churn
 
 **Tuning scale-down behavior:**
+
 ```yaml
 # Cluster autoscaler configuration
 - --scale-down-delay-after-add=10m      # Wait 10min after scale-up before considering scale-down
@@ -4977,6 +5154,7 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A 
 #### 7.2.3 Node Group Strategy
 
 **Multiple node groups for different workload types:**
+
 ```yaml
 # General purpose workloads
 apiVersion: eksctl.io/v1alpha5
@@ -5032,6 +5210,7 @@ nodeGroups:
 #### 7.3.1 VPA for Resource Discovery
 
 **VPA in recommendation mode:**
+
 ```yaml
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
@@ -5056,6 +5235,7 @@ spec:
 ```
 
 **Getting VPA recommendations:**
+
 ```bash
 # Get current recommendations
 kubectl describe vpa web-app-vpa
@@ -5081,6 +5261,7 @@ kubectl describe vpa web-app-vpa
 #### 7.3.2 Resource Request Right-Sizing
 
 **Common resource request mistakes:**
+
 ```yaml
 # BAD: Overprovisioned
 resources:
@@ -5102,6 +5283,7 @@ resources:
 ```
 
 **Resource monitoring for right-sizing:**
+
 ```bash
 # Monitor actual resource usage
 kubectl top pods --containers
@@ -5118,6 +5300,7 @@ kubectl exec prometheus-pod -- promtool query instant \
 #### 7.4.1 Load Testing EKS Workloads
 
 **Gradual load testing approach:**
+
 ```yaml
 # Load test job
 apiVersion: batch/v1
@@ -5149,6 +5332,7 @@ spec:
 ```
 
 **Load test script example:**
+
 ```javascript
 // load-test.js
 import http from 'k6/http';
@@ -5190,6 +5374,7 @@ export default function() {
 6. **Connection tracking limits (conntrack)**
 
 **Performance monitoring queries:**
+
 ```yaml
 # CPU throttling detection
 sum(rate(container_cpu_cfs_throttled_seconds_total[5m])) by (namespace, pod, container) > 0
@@ -5214,6 +5399,7 @@ histogram_quantile(0.95, sum(rate(coredns_dns_request_duration_seconds_bucket[5m
 #### 7.5.1 Common EKS-Related Service Limits
 
 **EC2 limits that affect scaling:**
+
 ```bash
 # Check current EC2 limits
 aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A  # On-Demand instances
@@ -5226,6 +5412,7 @@ aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" -
 ```
 
 **EKS-specific limits:**
+
 ```bash
 # EKS cluster limits
 aws service-quotas get-service-quota --service-code eks --quota-code L-1194D53C  # Clusters per region
@@ -5236,6 +5423,7 @@ aws service-quotas get-service-quota --service-code eks --quota-code L-CD136C55 
 #### 7.5.2 Proactive Limit Monitoring
 
 **Service limit monitoring:**
+
 ```yaml
 # CloudWatch custom metrics for service limits
 apiVersion: batch/v1
@@ -5282,6 +5470,7 @@ spec:
 **Symptoms:** Pods under load but HPA not creating more replicas
 
 **Step 1: Check HPA status**
+
 ```bash
 kubectl get hpa
 kubectl describe hpa <hpa-name>
@@ -5289,6 +5478,7 @@ kubectl describe hpa <hpa-name>
 ```
 
 **Step 2: Verify metrics availability**
+
 ```bash
 # Check if metrics server is working
 kubectl top pods
@@ -5299,12 +5489,14 @@ kubectl get --raw "/apis/metrics.k8s.io/v1beta1/namespaces/<namespace>/pods/<pod
 ```
 
 **Step 3: Check resource requests**
+
 ```bash
 kubectl describe deployment <deployment-name> | grep -A 5 "Requests:"
 # HPA requires CPU/memory requests to be set
 ```
 
 **Step 4: Check node capacity**
+
 ```bash
 kubectl describe nodes | grep -A 5 "Allocated resources"
 # Verify nodes have capacity for new pods
@@ -5315,12 +5507,14 @@ kubectl describe nodes | grep -A 5 "Allocated resources"
 **Symptoms:** Pods pending but no new nodes being created
 
 **Step 1: Check CA logs**
+
 ```bash
 kubectl -n kube-system logs deployment/cluster-autoscaler | tail -50
 # Look for: scale-up events, errors, AWS API issues
 ```
 
 **Step 2: Check pending pods**
+
 ```bash
 kubectl get pods -A --field-selector=status.phase=Pending
 kubectl describe pod <pending-pod>
@@ -5328,12 +5522,14 @@ kubectl describe pod <pending-pod>
 ```
 
 **Step 3: Check node group limits**
+
 ```bash
 aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names <asg-name>
 # Check: min/max size, desired capacity, current instances
 ```
 
 **Step 4: Check AWS service limits**
+
 ```bash
 aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
 # Verify you haven't hit EC2 instance limits
@@ -5344,6 +5540,7 @@ aws service-quotas get-service-quota --service-code ec2 --quota-code L-1216C47A
 **Symptoms:** Application slow during traffic spikes
 
 **Step 1: Check resource utilization**
+
 ```bash
 kubectl top pods --sort-by=cpu
 kubectl top pods --sort-by=memory
@@ -5351,12 +5548,14 @@ kubectl top nodes
 ```
 
 **Step 2: Check for CPU throttling**
+
 ```bash
 # Look for throttling in Prometheus
 # Query: sum(rate(container_cpu_cfs_throttled_seconds_total[5m])) by (namespace, pod)
 ```
 
 **Step 3: Check network limits**
+
 ```bash
 # Check AWS ENA metrics for network limits
 kubectl exec node-exporter-pod -- cat /sys/class/net/eth0/statistics/rx_dropped
@@ -5364,6 +5563,7 @@ kubectl exec node-exporter-pod -- cat /sys/class/net/eth0/statistics/tx_dropped
 ```
 
 **Step 4: Check DNS performance**
+
 ```bash
 # Test DNS resolution speed
 kubectl exec test-pod -- time nslookup kubernetes.default.svc.cluster.local
@@ -5385,6 +5585,7 @@ EKS upgrades are where "everything was working fine" becomes "production is down
 #### 8.1.1 EKS Upgrade Components
 
 **What actually gets upgraded:**
+
 ```
 [EKS Control Plane] → [Managed by AWS]
 [EKS Add-ons] → [CoreDNS, kube-proxy, VPC CNI, EBS CSI]
@@ -5397,6 +5598,7 @@ Each component can break independently, and version skew between components crea
 #### 8.1.2 Pre-Upgrade Validation Checklist
 
 **Compatibility matrix validation:**
+
 ```bash
 #!/bin/bash
 # EKS upgrade compatibility checker
@@ -5425,6 +5627,7 @@ aws eks describe-nodegroup --cluster-name $CLUSTER_NAME --nodegroup-name primary
 ```
 
 **Workload compatibility testing:**
+
 ```yaml
 # Test job to validate workloads on new version
 apiVersion: batch/v1
@@ -5463,6 +5666,7 @@ spec:
 #### 8.1.3 Staged Upgrade Approach
 
 **Phase 1: Control plane upgrade**
+
 ```bash
 # Upgrade control plane first (managed by AWS)
 aws eks update-cluster-version --name production-cluster --version 1.28
@@ -5476,6 +5680,7 @@ kubectl get pods -n kube-system
 ```
 
 **Phase 2: Add-on upgrades**
+
 ```bash
 # Upgrade VPC CNI first (networking critical)
 aws eks update-addon --cluster-name production-cluster --addon-name vpc-cni --addon-version v1.15.1-eksbuild.1
@@ -5488,6 +5693,7 @@ aws eks update-addon --cluster-name production-cluster --addon-name kube-proxy -
 ```
 
 **Phase 3: Node group upgrades (most risky)**
+
 ```bash
 # Create new node group with new version
 aws eks create-nodegroup \
@@ -5521,6 +5727,7 @@ aws eks delete-nodegroup --cluster-name production-cluster --nodegroup-name prim
 - Full validation before switching traffic
 
 **Implementation:**
+
 ```yaml
 # Blue node group (current)
 apiVersion: eksctl.io/v1alpha5
@@ -5553,6 +5760,7 @@ nodeGroups:
 ```
 
 **Migration process:**
+
 ```bash
 # 1. Create green node group
 eksctl create nodegroup --config-file=cluster-config.yaml --include="green-nodes"
@@ -5581,6 +5789,7 @@ eksctl delete nodegroup --cluster=production-cluster --name=blue-nodes
 #### 8.2.2 Rolling Node Group Updates
 
 **For stateful workloads that can't move easily:**
+
 ```bash
 # Update node group in place with rolling replacement
 aws eks update-nodegroup-version \
@@ -5597,6 +5806,7 @@ aws eks describe-nodegroup \
 ```
 
 **Custom rolling update script:**
+
 ```bash
 #!/bin/bash
 # Custom node rolling update with validation
@@ -5644,6 +5854,7 @@ done
 #### 8.3.1 Deprecated API Detection
 
 **Automated API deprecation scanning:**
+
 ```bash
 #!/bin/bash
 # Scan for deprecated APIs in cluster
@@ -5670,6 +5881,7 @@ echo "Deprecated API scan completed"
 ```
 
 **Pluto for comprehensive deprecation checking:**
+
 ```bash
 # Install pluto
 curl -L https://github.com/FairwindsOps/pluto/releases/download/v5.18.4/pluto_5.18.4_linux_amd64.tar.gz | tar xz
@@ -5688,6 +5900,7 @@ pluto detect-files -d ./k8s-manifests --target-versions k8s=v1.28.0
 #### 8.3.2 API Migration Strategies
 
 **Ingress API migration (extensions/v1beta1 → networking.k8s.io/v1):**
+
 ```yaml
 # OLD (deprecated in 1.22+)
 apiVersion: extensions/v1beta1
@@ -5724,6 +5937,7 @@ spec:
 ```
 
 **HPA API migration (autoscaling/v2beta1 → autoscaling/v2):**
+
 ```yaml
 # OLD (deprecated in 1.23+)
 apiVersion: autoscaling/v2beta1
@@ -5782,6 +5996,7 @@ spec:
 #### 8.4.2 Node Group Rollback
 
 **Quick node group rollback:**
+
 ```bash
 # If new node group has issues, switch back to old one
 kubectl patch deployment web-app -p '{"spec":{"template":{"spec":{"nodeSelector":{"deployment-group":"blue"}}}}}'
@@ -5801,6 +6016,7 @@ aws eks delete-nodegroup \
 #### 8.4.3 Add-on Rollback
 
 **Rolling back EKS add-ons:**
+
 ```bash
 # Check available versions
 aws eks describe-addon-versions --addon-name vpc-cni --kubernetes-version 1.27
@@ -5820,6 +6036,7 @@ aws eks update-addon \
 #### 8.5.1 Planned Maintenance Strategy
 
 **Maintenance window planning:**
+
 ```yaml
 # Maintenance mode deployment
 apiVersion: apps/v1
@@ -5866,6 +6083,7 @@ data:
 ```
 
 **Traffic switching for maintenance:**
+
 ```bash
 # Switch ingress to maintenance page
 kubectl patch ingress web-app -p '{"spec":{"rules":[{"host":"app.example.com","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"maintenance-page","port":{"number":80}}}}]}}]}}'
@@ -5880,6 +6098,7 @@ kubectl patch ingress web-app -p '{"spec":{"rules":[{"host":"app.example.com","h
 #### 8.5.2 Pod Disruption Budget Management
 
 **Maintenance-aware PDB configuration:**
+
 ```yaml
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -5895,6 +6114,7 @@ spec:
 ```
 
 **Temporary PDB adjustment for maintenance:**
+
 ```bash
 # Relax PDB for maintenance
 kubectl patch pdb web-app-pdb -p '{"spec":{"minAvailable":1}}'
@@ -5915,12 +6135,14 @@ kubectl patch pdb web-app-pdb -p '{"spec":{"minAvailable":2}}'
 **Symptoms:** EKS upgrade shows "InProgress" for hours
 
 **Step 1: Check upgrade status**
+
 ```bash
 aws eks describe-update --name production-cluster --update-id <update-id>
 # Look for: status, errors, created/modified timestamps
 ```
 
 **Step 2: Check control plane health**
+
 ```bash
 kubectl get nodes
 kubectl get pods -n kube-system
@@ -5928,6 +6150,7 @@ kubectl get --raw='/readyz?verbose'
 ```
 
 **Step 3: Check for blocking resources**
+
 ```bash
 # Check for stuck finalizers
 kubectl get all -A | grep Terminating
@@ -5938,6 +6161,7 @@ kubectl get mutatingwebhookconfigurations
 ```
 
 **Step 4: Contact AWS Support**
+
 ```bash
 # If upgrade is truly stuck (>4 hours), open AWS support case
 # Include: cluster name, update ID, timeline of events
@@ -5948,6 +6172,7 @@ kubectl get mutatingwebhookconfigurations
 **Symptoms:** Applications not working after node group upgrade
 
 **Step 1: Check pod status**
+
 ```bash
 kubectl get pods -A | grep -v Running
 kubectl describe pod <failing-pod>
@@ -5955,6 +6180,7 @@ kubectl describe pod <failing-pod>
 ```
 
 **Step 2: Check node conditions**
+
 ```bash
 kubectl get nodes
 kubectl describe node <new-node>
@@ -5962,6 +6188,7 @@ kubectl describe node <new-node>
 ```
 
 **Step 3: Check networking**
+
 ```bash
 # Test pod-to-pod connectivity
 kubectl exec test-pod -- ping <other-pod-ip>
@@ -5974,6 +6201,7 @@ kubectl -n kube-system logs -l k8s-app=aws-node
 ```
 
 **Step 4: Check storage**
+
 ```bash
 # Check PVC status
 kubectl get pvc -A
@@ -5990,18 +6218,21 @@ kubectl -n kube-system logs -l app=ebs-csi-controller
 **Symptoms:** EKS add-on shows "DEGRADED" status
 
 **Step 1: Check add-on status**
+
 ```bash
 aws eks describe-addon --cluster-name production-cluster --addon-name vpc-cni
 # Look for: status, health issues, configuration conflicts
 ```
 
 **Step 2: Check add-on pods**
+
 ```bash
 kubectl -n kube-system get pods -l k8s-app=aws-node
 kubectl -n kube-system logs -l k8s-app=aws-node
 ```
 
 **Step 3: Resolve conflicts**
+
 ```bash
 # If configuration conflicts exist, resolve with OVERWRITE
 aws eks update-addon \
@@ -6011,6 +6242,7 @@ aws eks update-addon \
 ```
 
 **Step 4: Rollback if necessary**
+
 ```bash
 # Check available versions
 aws eks describe-addon-versions --addon-name vpc-cni --kubernetes-version 1.27
@@ -6029,6 +6261,7 @@ aws eks update-addon \
 **The deployment problem:** During rolling updates, pods can receive traffic while terminating or before they're ready, causing 5xx errors.
 
 **Pod termination sequence:**
+
 ```
 1. Pod marked for termination (status: Terminating)
 2. Pod removed from Service endpoints (async)
@@ -6043,6 +6276,7 @@ aws eks update-addon \
 #### 8.7.1 Graceful Shutdown Configuration
 
 **Application-level graceful shutdown:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -6085,6 +6319,7 @@ spec:
 ```
 
 **Application code example (Go):**
+
 ```go
 package main
 
@@ -6120,6 +6355,7 @@ func main() {
 #### 8.7.2 Load Balancer Integration
 
 **AWS NLB connection draining:**
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -6141,6 +6377,7 @@ spec:
 ```
 
 **Envoy proxy graceful shutdown:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -6197,6 +6434,7 @@ data:
 #### 8.7.3 Rolling Update Strategy
 
 **Deployment strategy for zero-downtime updates:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -6230,6 +6468,7 @@ spec:
 ```
 
 **PodDisruptionBudget for controlled disruptions:**
+
 ```yaml
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -6294,6 +6533,7 @@ When a cluster fails catastrophically, the pressure to restore service leads to 
 #### 9.2.1 Cluster Configuration Backup
 
 **Essential cluster state to backup:**
+
 ```bash
 #!/bin/bash
 # Cluster backup script
@@ -6329,6 +6569,7 @@ echo "Cluster configuration backed up to $BACKUP_DIR"
 #### 9.2.2 Application State Backup with Velero
 
 **Velero installation for EKS:**
+
 ```bash
 # Install Velero with AWS plugin
 velero install \
@@ -6341,6 +6582,7 @@ velero install \
 ```
 
 **Comprehensive backup schedule:**
+
 ```yaml
 apiVersion: velero.io/v1
 kind: Schedule
@@ -6362,6 +6604,7 @@ spec:
 ```
 
 **Critical workload backup:**
+
 ```yaml
 apiVersion: velero.io/v1
 kind: Backup
@@ -6396,6 +6639,7 @@ spec:
 #### 9.2.3 etcd Backup Strategy
 
 **Automated etcd backup (for self-managed clusters):**
+
 ```bash
 #!/bin/bash
 # etcd backup script (not applicable to EKS managed control plane)
@@ -6420,6 +6664,7 @@ aws s3 cp backup.db s3://etcd-backups/backup-$(date +%Y%m%d-%H%M%S).db
 #### 9.3.1 Multi-Region EKS Architecture
 
 **Active-passive setup:**
+
 ```yaml
 # Primary region cluster
 apiVersion: eksctl.io/v1alpha5
@@ -6454,6 +6699,7 @@ nodeGroups:
 #### 9.3.2 Cross-Region Replication Strategy
 
 **Database replication:**
+
 ```yaml
 # RDS cross-region read replica
 apiVersion: v1
@@ -6472,6 +6718,7 @@ data:
 ```
 
 **Application data replication:**
+
 ```bash
 # Cross-region S3 replication for application assets
 aws s3api put-bucket-replication \
@@ -6482,6 +6729,7 @@ aws s3api put-bucket-replication \
 #### 9.3.3 DNS Failover Configuration
 
 **Route 53 health checks and failover:**
+
 ```json
 {
   "Type": "A",
@@ -6503,6 +6751,7 @@ aws s3api put-bucket-replication \
 #### 9.4.1 Complete Cluster Recreation
 
 **Cluster recreation runbook:**
+
 ```bash
 #!/bin/bash
 # Complete cluster recovery procedure
@@ -6549,6 +6798,7 @@ echo "Cluster recovery initiated. Monitor with: kubectl get pods -A"
 #### 9.4.2 Partial Recovery Scenarios
 
 **Node group replacement:**
+
 ```bash
 # If only node groups are affected
 aws eks create-nodegroup \
@@ -6566,6 +6816,7 @@ kubectl drain -l eks.amazonaws.com/nodegroup=old-nodes --ignore-daemonsets --del
 ```
 
 **Application-only recovery:**
+
 ```bash
 # If cluster is healthy but applications are corrupted
 velero restore create app-recovery \
@@ -6577,6 +6828,7 @@ velero restore create app-recovery \
 #### 9.4.3 Data Recovery Procedures
 
 **EBS volume recovery:**
+
 ```bash
 # Restore from EBS snapshot
 SNAPSHOT_ID="snap-1234567890abcdef0"
@@ -6591,6 +6843,7 @@ kubectl patch pv pvc-12345 -p '{"spec":{"awsElasticBlockStore":{"volumeID":"'$VO
 ```
 
 **Database recovery:**
+
 ```bash
 # RDS point-in-time recovery
 aws rds restore-db-instance-to-point-in-time \
@@ -6606,6 +6859,7 @@ aws rds restore-db-instance-to-point-in-time \
 #### 9.5.1 Disaster Recovery Testing Schedule
 
 **Monthly DR drill:**
+
 ```bash
 #!/bin/bash
 # DR drill script - run in non-production environment
@@ -6635,6 +6889,7 @@ echo "DR drill completed. Check results manually."
 #### 9.5.2 Recovery Time Objective (RTO) Validation
 
 **RTO measurement script:**
+
 ```bash
 #!/bin/bash
 # Measure actual recovery times
@@ -6681,6 +6936,7 @@ fi
 **Symptoms:** Cannot connect to cluster, AWS console shows cluster deleted/unavailable
 
 **Step 1: Assess scope**
+
 ```bash
 # Check if cluster exists
 aws eks describe-cluster --name production-cluster
@@ -6690,6 +6946,7 @@ curl -s https://status.aws.amazon.com/ | grep -i "service issues"
 ```
 
 **Step 2: Activate DR procedures**
+
 ```bash
 # Switch DNS to DR region (if available)
 aws route53 change-resource-record-sets \
@@ -6704,6 +6961,7 @@ aws eks update-nodegroup-config \
 ```
 
 **Step 3: Recreate primary cluster**
+
 ```bash
 # Use backup configuration
 eksctl create cluster --config-file=./backups/cluster-config.yaml
@@ -6718,6 +6976,7 @@ velero restore create disaster-recovery \
 **Symptoms:** Applications running but data is corrupted/missing
 
 **Step 1: Stop writes immediately**
+
 ```bash
 # Scale down applications to prevent further corruption
 kubectl scale deployment --replicas=0 -n production -l tier=application
@@ -6727,6 +6986,7 @@ kubectl cordon --all
 ```
 
 **Step 2: Assess data integrity**
+
 ```bash
 # Check database consistency
 kubectl exec -it database-pod -- pg_dump --schema-only mydb > schema-backup.sql
@@ -6736,6 +6996,7 @@ kubectl exec -it app-pod -- find /data -name "*.log" -mtime -1 | head -10
 ```
 
 **Step 3: Restore from backup**
+
 ```bash
 # Restore database from point-in-time backup
 aws rds restore-db-instance-to-point-in-time \
@@ -6754,6 +7015,7 @@ velero restore create data-recovery \
 **Symptoms:** All AWS services in primary region unavailable
 
 **Step 1: Immediate failover**
+
 ```bash
 # Activate DR region immediately
 aws route53 change-resource-record-sets \
@@ -6766,6 +7028,7 @@ kubectl scale deployment --replicas=3 -n production -l tier=api
 ```
 
 **Step 2: Promote read replicas**
+
 ```bash
 # Promote RDS read replica to primary
 aws rds promote-read-replica \
@@ -6777,6 +7040,7 @@ kubectl patch configmap app-config -p '{"data":{"database_url":"prod-db-replica.
 ```
 
 **Step 3: Monitor and adjust**
+
 ```bash
 # Monitor application health in DR region
 kubectl get pods -A | grep -v Running
@@ -6816,6 +7080,7 @@ Every engineering decision here directly hits the budget. Below: the cost levers
 #### 10.1.2 Cost Visibility and Tracking
 
 **Essential cost tracking:**
+
 ```bash
 # Get EKS cluster costs
 aws ce get-cost-and-usage \
@@ -6837,6 +7102,7 @@ EOF
 ```
 
 **Resource tagging for cost allocation:**
+
 ```yaml
 apiVersion: v1
 kind: Node
@@ -6855,6 +7121,7 @@ metadata:
 #### 10.2.1 Resource Request Optimization
 
 **The over-provisioning problem:**
+
 ```bash
 # Find over-provisioned pods
 kubectl top pods -A --sort-by=cpu | head -20
@@ -6865,6 +7132,7 @@ kubectl get pods -A -o custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.na
 ```
 
 **VPA for right-sizing recommendations:**
+
 ```yaml
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
@@ -6889,6 +7157,7 @@ spec:
 ```
 
 **Automated right-sizing script:**
+
 ```bash
 #!/bin/bash
 # Generate right-sizing recommendations
@@ -6914,6 +7183,7 @@ done
 #### 10.2.2 Node Right-Sizing
 
 **Instance type cost analysis:**
+
 ```bash
 # Compare instance costs per vCPU and per GB RAM
 aws ec2 describe-instance-types \
@@ -6929,6 +7199,7 @@ aws pricing get-products \
 ```
 
 **Node utilization analysis:**
+
 ```bash
 # Check node resource utilization
 kubectl top nodes
@@ -6947,6 +7218,7 @@ kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU_CAPACITY:.status.cap
 #### 10.3.1 Spot Instance Strategy
 
 **Spot-optimized node group:**
+
 ```yaml
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
@@ -6972,6 +7244,7 @@ nodeGroups:
 ```
 
 **Spot-tolerant workload configuration:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -7000,6 +7273,7 @@ spec:
 #### 10.3.2 Mixed Instance Type Strategy
 
 **Diversified node groups:**
+
 ```yaml
 # On-demand for critical workloads
 - name: on-demand-critical
@@ -7028,6 +7302,7 @@ spec:
 ```
 
 **Workload placement strategy:**
+
 ```yaml
 # Critical workloads on on-demand
 apiVersion: apps/v1
@@ -7070,6 +7345,7 @@ spec:
 #### 10.4.1 EBS Volume Optimization
 
 **Storage class cost comparison:**
+
 ```yaml
 # gp3 (newer, more cost-effective)
 apiVersion: storage.k8s.io/v1
@@ -7097,6 +7373,7 @@ reclaimPolicy: Delete
 ```
 
 **Volume cleanup automation:**
+
 ```bash
 #!/bin/bash
 # Clean up unused EBS volumes
@@ -7121,6 +7398,7 @@ echo "Review these volumes for deletion to reduce costs"
 #### 10.4.2 Persistent Volume Reclaim Policies
 
 **Cost-conscious reclaim policies:**
+
 ```yaml
 # For development environments - Delete to avoid orphaned volumes
 apiVersion: v1
@@ -7156,6 +7434,7 @@ spec:
 #### 10.5.1 Cross-AZ Data Transfer Reduction
 
 **Single-AZ node groups for specific workloads:**
+
 ```yaml
 # For high-throughput, low-latency workloads
 apiVersion: eksctl.io/v1alpha5
@@ -7171,6 +7450,7 @@ nodeGroups:
 ```
 
 **Pod anti-affinity for AZ awareness:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -7196,6 +7476,7 @@ spec:
 #### 10.5.2 NAT Gateway Cost Optimization
 
 **NAT Gateway alternatives:**
+
 ```bash
 # Option 1: NAT instances (cheaper for high traffic)
 # Create NAT instance instead of NAT Gateway for cost savings
@@ -7222,6 +7503,7 @@ aws ec2 create-vpc-endpoint \
 - Shared operational overhead
 
 **Namespace-based multi-tenancy:**
+
 ```yaml
 # Resource quotas per team
 apiVersion: v1
@@ -7271,6 +7553,7 @@ spec:
 #### 10.6.2 Shared Services Strategy
 
 **Centralized monitoring and logging:**
+
 ```yaml
 # Shared monitoring namespace
 apiVersion: v1
@@ -7309,6 +7592,7 @@ spec:
 #### 10.7.1 Cost Anomaly Detection
 
 **CloudWatch cost alerts:**
+
 ```bash
 # Create cost budget with alerts
 aws budgets create-budget \
@@ -7335,6 +7619,7 @@ EOF
 #### 10.7.2 Resource Utilization Monitoring
 
 **Cluster cost efficiency metrics:**
+
 ```bash
 #!/bin/bash
 # Calculate cluster cost efficiency
@@ -7370,6 +7655,7 @@ fi
 #### 10.8.1 "Monthly cost spike" Investigation
 
 **Step 1: Identify cost drivers**
+
 ```bash
 # Get cost breakdown by service
 aws ce get-cost-and-usage \
@@ -7387,6 +7673,7 @@ aws ce get-cost-and-usage \
 ```
 
 **Step 2: Analyze resource usage**
+
 ```bash
 # Check for resource over-provisioning
 kubectl top nodes
@@ -7398,6 +7685,7 @@ aws ec2 describe-volumes --filters Name=status,Values=available
 ```
 
 **Step 3: Implement immediate cost reductions**
+
 ```bash
 # Scale down non-production environments
 kubectl scale deployment --replicas=0 -n staging --all
@@ -7410,6 +7698,7 @@ kubectl delete pvc -A --field-selector=status.phase=Pending
 #### 10.8.2 "Right-sizing recommendations" Runbook
 
 **Step 1: Collect usage data**
+
 ```bash
 # Install VPA recommender
 kubectl apply -f https://github.com/kubernetes/autoscaler/releases/download/vertical-pod-autoscaler-0.13.0/vpa-release.yaml
@@ -7421,12 +7710,14 @@ done
 ```
 
 **Step 2: Analyze recommendations**
+
 ```bash
 # Get VPA recommendations
 kubectl get vpa -A -o custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,CPU_TARGET:.status.recommendation.containerRecommendations[0].target.cpu,MEMORY_TARGET:.status.recommendation.containerRecommendations[0].target.memory
 ```
 
 **Step 3: Apply optimizations**
+
 ```bash
 # Update deployment with new resource requests
 kubectl patch deployment web-app -p '{"spec":{"template":{"spec":{"containers":[{"name":"web-app","resources":{"requests":{"cpu":"200m","memory":"256Mi"}}}]}}}}'
@@ -7450,6 +7741,7 @@ Step-by-step solutions for the most common EKS production failures. Symptoms, di
 - Applications fail to scale up
 
 **Diagnosis:**
+
 ```bash
 # Check pod events for scheduling failures
 kubectl describe pod <pending-pod>
@@ -7464,6 +7756,7 @@ kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints
 **Common root causes and fixes:**
 
 **Insufficient resources:**
+
 ```bash
 # Check cluster capacity
 kubectl top nodes
@@ -7476,6 +7769,7 @@ aws eks update-nodegroup-config \
 ```
 
 **Node selector mismatch:**
+
 ```bash
 # Check pod node selector
 kubectl get pod <pod> -o yaml | grep -A 5 nodeSelector
@@ -7488,6 +7782,7 @@ kubectl label node <node-name> environment=production
 ```
 
 **Taints and tolerations:**
+
 ```bash
 # Remove problematic taint
 kubectl taint node <node-name> key:NoSchedule-
@@ -7519,6 +7814,7 @@ kubectl patch deployment <deployment> -p '{
 **Root cause:** Flaky readiness probes causing pods to appear unschedulable.
 
 **Diagnosis:**
+
 ```bash
 # Check Cluster Autoscaler logs
 kubectl -n kube-system logs -l app=cluster-autoscaler --tail=100
@@ -7531,6 +7827,7 @@ kubectl get events --field-selector reason=Unhealthy --sort-by='.lastTimestamp'
 ```
 
 **Fix:**
+
 ```bash
 # Identify problematic deployment
 kubectl describe pod <failing-pod> | grep -A 10 "Readiness probe failed"
@@ -7585,6 +7882,7 @@ kubectl -n kube-system patch deployment cluster-autoscaler -p '{
 **Root cause:** Large container images or excessive logging filling node disk.
 
 **Diagnosis:**
+
 ```bash
 # Check node disk usage
 kubectl get nodes -o custom-columns=NAME:.metadata.name,DISK-PRESSURE:.status.conditions[?(@.type==\"DiskPressure\")].status
@@ -7600,6 +7898,7 @@ kubectl debug node/<node-name> -it --image=busybox -- du -sh /var/log/containers
 ```
 
 **Fix:**
+
 ```bash
 # Clean up unused images
 kubectl debug node/<node-name> -it --image=busybox -- crictl rmi --prune
@@ -7664,6 +7963,7 @@ EOF
 **Root cause:** Custom finalizers not being processed due to controller failures.
 
 **Diagnosis:**
+
 ```bash
 # Find pods with finalizers
 kubectl get pods --all-namespaces -o json | jq -r '.items[] | select(.metadata.finalizers != null) | "\(.metadata.namespace)/\(.metadata.name): \(.metadata.finalizers)"'
@@ -7676,6 +7976,7 @@ kubectl get pods -n <controller-namespace> | grep <controller-name>
 ```
 
 **Fix:**
+
 ```bash
 # Remove finalizers manually (DANGEROUS - only if controller is confirmed dead)
 kubectl patch pod <pod-name> -p '{"metadata":{"finalizers":[]}}' --type=merge
@@ -7699,6 +8000,7 @@ kubectl -n <controller-namespace> rollout restart deployment <controller-name>
 **Root cause:** Too many concurrent API requests overwhelming the API server.
 
 **Diagnosis:**
+
 ```bash
 # Check API server metrics
 kubectl top pods -n kube-system | grep kube-apiserver
@@ -7713,6 +8015,7 @@ kubectl get events --sort-by='.lastTimestamp' | head -20
 ```
 
 **Fix:**
+
 ```bash
 # Identify and throttle problematic controllers
 kubectl get deployments --all-namespaces -o wide | grep -v "1/1"
@@ -7734,6 +8037,7 @@ kubectl scale deployment <problematic-controller> --replicas=0 -n <namespace>
 **Root cause:** Network policies, security groups, or CNI issues.
 
 **Diagnosis:**
+
 ```bash
 # Test basic connectivity
 kubectl run debug-pod --image=busybox -it --rm -- sh
@@ -7752,6 +8056,7 @@ kubectl -n kube-system logs -l k8s-app=aws-node
 ```
 
 **Fix:**
+
 ```bash
 # Allow traffic in network policy
 kubectl apply -f - <<EOF
@@ -7790,6 +8095,7 @@ kubectl -n kube-system delete pods -l k8s-app=aws-node
 **Root cause:** CronJobs without resource limits running concurrently.
 
 **Diagnosis:**
+
 ```bash
 # Check running CronJobs
 kubectl get cronjobs --all-namespaces
@@ -7802,6 +8108,7 @@ kubectl get cronjobs --all-namespaces -o custom-columns=NAME:.metadata.name,SCHE
 ```
 
 **Fix:**
+
 ```bash
 # Add resource limits to CronJob
 kubectl patch cronjob <cronjob-name> -p '{
@@ -7855,6 +8162,7 @@ kubectl patch cronjob <cronjob-name> -p '{
 **Root cause:** Applications logging at debug level or without log rotation.
 
 **Diagnosis:**
+
 ```bash
 # Check disk usage on nodes
 kubectl get nodes -o custom-columns=NAME:.metadata.name,DISK-PRESSURE:.status.conditions[?(@.type==\"DiskPressure\")].status
@@ -7867,6 +8175,7 @@ kubectl debug node/<node-name> -it --image=busybox -- ls -lah /var/log/container
 ```
 
 **Fix:**
+
 ```bash
 # Reduce log level in application
 kubectl set env deployment/<deployment-name> LOG_LEVEL=INFO
@@ -7907,6 +8216,7 @@ kubectl debug node/<node-name> -it --image=busybox -- sh -c 'truncate -s 0 /var/
 The aws-auth ConfigMap is the single point of failure for EKS cluster access. A single space or tab error can lock out all users.
 
 **Diagnosis:**
+
 ```bash
 # Check current aws-auth ConfigMap
 kubectl get configmap aws-auth -n kube-system -o yaml
@@ -7919,6 +8229,7 @@ kubectl get configmap aws-auth -n kube-system -o yaml | grep -E "^\s*-\s*rolearn
 ```
 
 **Emergency access recovery:**
+
 ```bash
 # If locked out, use cluster creator credentials or root user
 aws sts get-caller-identity
@@ -7928,6 +8239,7 @@ aws sts get-caller-identity
 ```
 
 **Fix malformed aws-auth:**
+
 ```bash
 # Backup current ConfigMap first
 kubectl get configmap aws-auth -n kube-system -o yaml > aws-auth-backup.yaml
@@ -7945,6 +8257,7 @@ kubectl auth can-i '*' '*' --as=arn:aws:iam::123456789012:role/EKSAdminRole
 ```
 
 **Correct aws-auth format:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -7970,6 +8283,7 @@ data:
 ```
 
 **Common aws-auth mistakes:**
+
 ```yaml
 # WRONG - Mixed tabs and spaces
 mapRoles: |
@@ -7994,6 +8308,7 @@ mapRoles: |
 ```
 
 **Prevention and monitoring:**
+
 ```bash
 # Validate before applying
 yq eval '.data.mapRoles' aws-auth.yaml
@@ -8030,6 +8345,7 @@ kubectl get configmap aws-auth -n kube-system -o yaml > "aws-auth-backup-$(date 
 **Root cause:** Missing admission controller or misconfigured PSP.
 
 **Diagnosis:**
+
 ```bash
 # Check if PSP admission controller is enabled (EKS doesn't enable by default)
 kubectl get pods -n kube-system kube-apiserver-* -o yaml | grep -A 5 admission-control
@@ -8045,6 +8361,7 @@ kubectl describe pod <pod-name> | grep -i "psp\|security"
 ```
 
 **Fix:**
+
 ```bash
 # For EKS, use Pod Security Standards instead of PSP
 kubectl label namespace <namespace> pod-security.kubernetes.io/enforce=restricted
@@ -8085,6 +8402,7 @@ kubectl patch deployment <deployment> -p '{
 - Applications unable to perform required operations
 
 **Diagnosis:**
+
 ```bash
 # Check current user permissions
 kubectl auth can-i --list
@@ -8100,6 +8418,7 @@ kubectl auth can-i create pods --as=system:serviceaccount:<namespace>:<service-a
 ```
 
 **Fix:**
+
 ```bash
 # Create minimal role for service account
 kubectl apply -f - <<EOF
@@ -8143,6 +8462,7 @@ kubectl delete clusterrolebinding <overly-broad-binding>
 - Configuration containing plaintext credentials
 
 **Diagnosis:**
+
 ```bash
 # Check environment variables in running pod
 kubectl exec <pod-name> -- env | grep -i -E "(password|secret|key|token)"
@@ -8155,6 +8475,7 @@ kubectl logs <pod-name> | grep -i -E "(password|secret|key|token)" | head -5
 ```
 
 **Fix:**
+
 ```bash
 # Mount secrets as files instead of env vars
 kubectl patch deployment <deployment> -p '{
@@ -8226,6 +8547,7 @@ EOF
 - Rolling updates stuck
 
 **Diagnosis:**
+
 ```bash
 # Check PDB status
 kubectl get pdb -A
@@ -8235,6 +8557,7 @@ kubectl describe pdb <pdb-name>
 ```
 
 **Fix:**
+
 ```bash
 # Temporarily relax PDB
 kubectl patch pdb <pdb-name> -p '{"spec":{"minAvailable":1}}'
@@ -8258,6 +8581,7 @@ kubectl patch pdb <pdb-name> -p '{"spec":{"minAvailable":3}}'
 - Intermittent connectivity issues
 
 **Diagnosis:**
+
 ```bash
 # Test connectivity from pod
 kubectl exec -it <pod> -- curl -v https://api.external.com
@@ -8272,6 +8596,7 @@ aws ec2 describe-security-groups --group-ids <sg-id>
 **Common fixes:**
 
 **NAT Gateway issues:**
+
 ```bash
 # Check NAT Gateway metrics
 aws cloudwatch get-metric-statistics \
@@ -8285,6 +8610,7 @@ aws cloudwatch get-metric-statistics \
 ```
 
 **Security group blocking traffic:**
+
 ```bash
 # Add egress rule for HTTPS
 aws ec2 authorize-security-group-egress \
@@ -8302,6 +8628,7 @@ aws ec2 authorize-security-group-egress \
 - Intermittent DNS failures
 
 **Diagnosis:**
+
 ```bash
 # Test DNS resolution
 kubectl exec -it <pod> -- nslookup kubernetes.default.svc.cluster.local
@@ -8317,6 +8644,7 @@ kubectl get endpoints <service-name>
 **Fixes:**
 
 **CoreDNS not ready:**
+
 ```bash
 # Scale up CoreDNS
 kubectl -n kube-system scale deployment coredns --replicas=3
@@ -8326,6 +8654,7 @@ kubectl -n kube-system get configmap coredns -o yaml
 ```
 
 **Service has no endpoints:**
+
 ```bash
 # Check if pods are ready
 kubectl get pods -l app=<service-selector>
@@ -8349,6 +8678,7 @@ kubectl patch service <service-name> -p '{"spec":{"selector":{"app":"correct-lab
 - StatefulSet pods fail to start
 
 **Diagnosis:**
+
 ```bash
 # Check pod events
 kubectl describe pod <pod>
@@ -8363,6 +8693,7 @@ kubectl get volumeattachment
 **Common fixes:**
 
 **EBS volume in wrong AZ:**
+
 ```bash
 # Check pod and volume zones
 kubectl get pod <pod> -o wide
@@ -8373,6 +8704,7 @@ kubectl delete pod <pod>
 ```
 
 **CSI driver issues:**
+
 ```bash
 # Check CSI driver health
 kubectl -n kube-system get pods -l app=ebs-csi-controller
@@ -8390,6 +8722,7 @@ kubectl -n kube-system rollout restart deployment ebs-csi-controller
 - Storage class issues
 
 **Diagnosis:**
+
 ```bash
 # Check PVC events
 kubectl describe pvc <pvc-name>
@@ -8404,6 +8737,7 @@ kubectl -n kube-system logs -l app=ebs-csi-controller
 **Fixes:**
 
 **Storage class misconfiguration:**
+
 ```bash
 # Check available storage classes
 kubectl get storageclass
@@ -8436,6 +8770,7 @@ EOF
 - Application performance degradation
 
 **Diagnosis:**
+
 ```bash
 # Check pod resource usage
 kubectl top pod <pod>
@@ -8450,12 +8785,14 @@ kubectl get pod <pod> -o yaml | grep -A 5 resources
 **Fixes:**
 
 **Increase memory limits:**
+
 ```bash
 # Update deployment with higher memory limits
 kubectl patch deployment <deployment> -p '{"spec":{"template":{"spec":{"containers":[{"name":"<container>","resources":{"limits":{"memory":"2Gi"},"requests":{"memory":"1Gi"}}}]}}}}'
 ```
 
 **Optimize application memory usage:**
+
 ```bash
 # Check for memory leaks
 kubectl exec -it <pod> -- ps aux --sort=-%mem | head
@@ -8472,6 +8809,7 @@ kubectl set env deployment/<deployment> GOMAXPROCS=2 GOMEMLIMIT=1GiB
 - Load balancer health checks failing
 
 **Diagnosis:**
+
 ```bash
 # Check pod readiness
 kubectl get pods -o wide
@@ -8486,12 +8824,14 @@ kubectl exec -it <pod> -- curl localhost:8080/health
 **Fixes:**
 
 **Adjust probe timing:**
+
 ```bash
 # Update probe configuration
 kubectl patch deployment <deployment> -p '{"spec":{"template":{"spec":{"containers":[{"name":"<container>","readinessProbe":{"initialDelaySeconds":30,"periodSeconds":10,"timeoutSeconds":5,"failureThreshold":3}}]}}}}'
 ```
 
 **Fix probe endpoint:**
+
 ```bash
 # Check if health endpoint is correct
 kubectl exec -it <pod> -- netstat -tlnp | grep :8080
@@ -8512,6 +8852,7 @@ kubectl patch deployment <deployment> -p '{"spec":{"template":{"spec":{"containe
 - Cluster operations slow
 
 **Diagnosis:**
+
 ```bash
 # Check API server metrics
 kubectl get --raw /metrics | grep apiserver_request_duration
@@ -8526,6 +8867,7 @@ kubectl top nodes
 **Fixes:**
 
 **Reduce API server load:**
+
 ```bash
 # Find clients making excessive requests
 kubectl get events --sort-by='.lastTimestamp' | tail -20
@@ -8545,6 +8887,7 @@ kubectl scale deployment <noisy-controller> --replicas=0
 - Node groups not scaling up
 
 **Diagnosis:**
+
 ```bash
 # Check cluster autoscaler logs
 kubectl -n kube-system logs -l app=cluster-autoscaler
@@ -8559,6 +8902,7 @@ aws sts get-caller-identity
 **Fixes:**
 
 **IAM permission issues:**
+
 ```bash
 # Check autoscaler service account
 kubectl -n kube-system describe sa cluster-autoscaler
@@ -8568,6 +8912,7 @@ aws iam get-role-policy --role-name <autoscaler-role> --policy-name <policy-name
 ```
 
 **Node group limits:**
+
 ```bash
 # Increase node group max size
 aws eks update-nodegroup-config \
@@ -8588,6 +8933,7 @@ aws eks update-nodegroup-config \
 - Intermittent slowdowns
 
 **Diagnosis:**
+
 ```bash
 # Check CPU throttling
 kubectl exec -it <pod> -- cat /sys/fs/cgroup/cpu/cpu.stat | grep throttled
@@ -8602,6 +8948,7 @@ kubectl top pod <pod> --containers
 **Fixes:**
 
 **Adjust CPU limits:**
+
 ```bash
 # Remove CPU limits for CPU-intensive workloads
 kubectl patch deployment <deployment> -p '{"spec":{"template":{"spec":{"containers":[{"name":"<container>","resources":{"limits":{"cpu":null}}}]}}}}'
@@ -8618,6 +8965,7 @@ kubectl patch deployment <deployment> -p '{"spec":{"template":{"spec":{"containe
 - EBS volume performance issues
 
 **Diagnosis:**
+
 ```bash
 # Check disk I/O from pod
 kubectl exec -it <pod> -- iostat -x 1 5
@@ -8636,6 +8984,7 @@ aws cloudwatch get-metric-statistics \
 **Fixes:**
 
 **Upgrade to higher IOPS volume:**
+
 ```bash
 # Modify EBS volume type
 aws ec2 modify-volume \
@@ -8651,6 +9000,7 @@ aws ec2 modify-volume \
 #### 11.10.1 "Cluster completely unresponsive"
 
 **Immediate actions:**
+
 ```bash
 # 1. Check if it's a regional AWS issue
 curl -s https://status.aws.amazon.com/
@@ -8671,6 +9021,7 @@ aws route53 change-resource-record-sets \
 #### 11.10.2 "Mass pod failures across cluster"
 
 **Immediate actions:**
+
 ```bash
 # 1. Stop any ongoing deployments
 kubectl rollout pause deployment/<deployment>
@@ -8758,6 +9109,7 @@ Scale introduces failure modes that simply don't exist in smaller clusters. Hund
 #### 12.1.2 Multi-Cluster Networking
 
 **Cross-cluster service communication:**
+
 ```yaml
 # External DNS for cross-cluster service discovery
 apiVersion: v1
@@ -8776,6 +9128,7 @@ spec:
 ```
 
 **VPC peering for cluster connectivity:**
+
 ```bash
 # Create VPC peering between clusters
 aws ec2 create-vpc-peering-connection \
@@ -8793,6 +9146,7 @@ aws ec2 create-route \
 #### 12.1.3 Multi-Cluster Management
 
 **Centralized cluster management with ArgoCD:**
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -8815,6 +9169,7 @@ spec:
 ```
 
 **Cluster inventory management:**
+
 ```bash
 #!/bin/bash
 # Multi-cluster inventory script
@@ -8851,6 +9206,7 @@ done
 #### 12.2.1 Node Pool Strategies at Scale
 
 **Diversified instance types for resilience:**
+
 ```yaml
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
@@ -8874,6 +9230,7 @@ nodeGroups:
 ```
 
 **Dedicated node pools for specific workloads:**
+
 ```yaml
 # High-memory workloads
 - name: memory-optimized
@@ -8903,6 +9260,7 @@ nodeGroups:
 #### 12.2.2 Node Lifecycle Management at Scale
 
 **Automated node replacement:**
+
 ```bash
 #!/bin/bash
 # Automated node replacement for large clusters
@@ -8929,6 +9287,7 @@ done
 ```
 
 **Node health monitoring:**
+
 ```yaml
 apiVersion: apps/v1
 kind: DaemonSet
@@ -8997,6 +9356,7 @@ spec:
 #### 12.3.1 Pod Density Optimization
 
 **Understanding EKS pod limits:**
+
 ```bash
 # Check maximum pods per node type
 curl -s https://raw.githubusercontent.com/aws/amazon-vpc-cni-k8s/refs/heads/master/misc/eni-max-pods.txt | grep -E "(m5|c5|r5)"
@@ -9006,6 +9366,7 @@ kubectl get nodes -o custom-columns=NAME:.metadata.name,PODS:.status.capacity.po
 ```
 
 **High-density scheduling configuration:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -9022,6 +9383,7 @@ data:
 #### 12.3.2 Resource Fragmentation Prevention
 
 **Pod resource standardization:**
+
 ```yaml
 # Standard resource classes
 apiVersion: v1
@@ -9046,6 +9408,7 @@ spec:
 ```
 
 **Anti-fragmentation scheduling:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -9085,6 +9448,7 @@ spec:
 #### 12.4.1 API Server Load Management
 
 **Client-side rate limiting:**
+
 ```bash
 # Configure kubectl rate limiting
 export KUBECTL_QPS=50
@@ -9095,6 +9459,7 @@ kubectl patch deployment controller-manager -p '{"spec":{"template":{"spec":{"co
 ```
 
 **Watch optimization:**
+
 ```yaml
 # Efficient controller pattern
 apiVersion: apps/v1
@@ -9119,6 +9484,7 @@ spec:
 #### 12.4.2 etcd Performance Optimization
 
 **etcd monitoring at scale:**
+
 ```bash
 # Monitor etcd performance metrics
 kubectl get --raw /metrics | grep etcd_request_duration_seconds
@@ -9137,6 +9503,7 @@ kubectl get --raw /metrics | grep etcd_network_client_grpc_received_bytes_total
 #### 12.5.1 Active-Active Multi-Region Setup
 
 **Regional cluster configuration:**
+
 ```yaml
 # US-West-2 cluster
 apiVersion: eksctl.io/v1alpha5
@@ -9162,6 +9529,7 @@ metadata:
 ```
 
 **Cross-region service mesh:**
+
 ```yaml
 # Istio multi-cluster configuration
 apiVersion: networking.istio.io/v1alpha3
@@ -9185,6 +9553,7 @@ spec:
 #### 12.5.2 Global Load Balancing
 
 **Route 53 health checks for multi-region:**
+
 ```bash
 # Create health check for each region
 aws route53 create-health-check \
@@ -9204,6 +9573,7 @@ aws route53 change-resource-record-sets \
 #### 12.6.1 Cluster Autoscaler at Scale
 
 **Multi-AZ autoscaling configuration:**
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -9234,6 +9604,7 @@ spec:
 #### 12.6.2 Karpenter for Large-Scale Provisioning
 
 **Karpenter configuration for scale:**
+
 ```yaml
 apiVersion: karpenter.sh/v1alpha5
 kind: Provisioner
@@ -9267,6 +9638,7 @@ spec:
 #### 12.7.1 Centralized Logging and Monitoring
 
 **Fluent Bit configuration for high-throughput:**
+
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -9302,6 +9674,7 @@ data:
 #### 12.7.2 GitOps at Scale
 
 **ArgoCD application-of-applications pattern:**
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -9336,6 +9709,7 @@ spec:
 - Node capacity reached but resources available
 
 **Diagnosis:**
+
 ```bash
 # Check pod limits per node
 kubectl describe node <node> | grep -A 10 "Allocatable"
@@ -9345,6 +9719,7 @@ kubectl get pods -A -o wide | grep <node> | wc -l
 ```
 
 **Solutions:**
+
 ```bash
 # Enable prefix delegation for higher pod density
 kubectl set env daemonset aws-node -n kube-system ENABLE_PREFIX_DELEGATION=true
@@ -9364,6 +9739,7 @@ aws eks update-nodegroup-config \
 - etcd performance degradation
 
 **Diagnosis:**
+
 ```bash
 # Check API server metrics
 kubectl get --raw /metrics | grep apiserver_request_total
@@ -9373,6 +9749,7 @@ kubectl get --raw /metrics | grep apiserver_registered_watchers
 ```
 
 **Solutions:**
+
 ```bash
 # Implement client-side rate limiting
 kubectl patch deployment <controller> -p '{"spec":{"template":{"spec":{"containers":[{"name":"controller","env":[{"name":"QPS","value":"10"},{"name":"BURST","value":"15"}]}]}}}}'
@@ -9390,6 +9767,7 @@ kubectl scale deployment <noisy-controller> --replicas=1
 #### A.1 Essential kubectl Commands for EKS Troubleshooting
 
 **Pod debugging:**
+
 ```bash
 # Get pod details with events
 kubectl describe pod <pod-name>
@@ -9408,6 +9786,7 @@ kubectl port-forward pod/<pod-name> 8080:80
 ```
 
 **Service and networking:**
+
 ```bash
 # Check service endpoints
 kubectl get endpoints <service-name>
@@ -9423,6 +9802,7 @@ kubectl exec -it <pod> -- curl <service-name>.<namespace>.svc.cluster.local
 ```
 
 **Node and cluster debugging:**
+
 ```bash
 # Get node resource usage
 kubectl top nodes
@@ -9441,6 +9821,7 @@ kubectl cluster-info
 #### A.2 AWS CLI Commands for EKS Operations
 
 **Cluster management:**
+
 ```bash
 # Update kubeconfig for EKS cluster
 aws eks update-kubeconfig --region <region> --name <cluster-name>
@@ -9456,6 +9837,7 @@ aws eks describe-cluster --name <cluster-name> --query 'cluster.{endpoint:endpoi
 ```
 
 **Node group operations:**
+
 ```bash
 # List node groups
 aws eks list-nodegroups --cluster-name <cluster-name>
@@ -9468,6 +9850,7 @@ aws eks update-nodegroup-config --cluster-name <cluster-name> --nodegroup-name <
 ```
 
 **Add-on management:**
+
 ```bash
 # List available add-ons
 aws eks describe-addon-versions --kubernetes-version 1.28
@@ -9482,6 +9865,7 @@ aws eks update-addon --cluster-name <cluster-name> --addon-name vpc-cni --addon-
 #### A.3 Useful Tools and Utilities
 
 **Network debugging tools:**
+
 ```bash
 # Install netshoot for comprehensive network debugging
 kubectl run netshoot --image=nicolaka/netshoot --rm -it -- bash
@@ -9495,6 +9879,7 @@ ss -tulpn
 ```
 
 **Resource analysis tools:**
+
 ```bash
 # Install kube-capacity for resource analysis
 kubectl krew install resource-capacity
@@ -9514,6 +9899,7 @@ This appendix provides a detailed technical analysis of how pods in EKS use link
 #### B.1 EKS Pod Networking Architecture
 
 **Understanding the network stack:**
+
 ```
 [Pod Container] 
     ↓ (veth pair)
@@ -9531,6 +9917,7 @@ This appendix provides a detailed technical analysis of how pods in EKS use link
 #### B.2 Tracing Pod Egress Traffic Step-by-Step
 
 **Step 1: Examine pod network namespace**
+
 ```bash
 # Get pod details and node
 kubectl get pod <pod-name> -o wide
@@ -9545,6 +9932,7 @@ ip route show table all
 ```
 
 **Example output from inside pod:**
+
 ```bash
 # ip addr show
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN
@@ -9559,6 +9947,7 @@ default via 169.254.1.1 dev eth0  # Link-local gateway
 ```
 
 **Step 2: Examine the veth pair connection**
+
 ```bash
 # From the node (not inside pod), find the pod's network namespace
 docker ps | grep <pod-name>
@@ -9573,6 +9962,7 @@ ip link show | grep -A1 -B1 "veth"
 ```
 
 **Step 3: Trace the link-local gateway (169.254.1.1)**
+
 ```bash
 # From the node, examine routing for link-local traffic
 ip route show table all | grep 169.254.1.1
@@ -9589,6 +9979,7 @@ ip neigh show | grep 169.254.1.1
 #### B.3 AWS VPC CNI Link-Local Implementation
 
 **Step 4: Understanding the CNI's link-local magic**
+
 ```bash
 # Examine the ENI that serves as the "gateway"
 ip addr show eni-abc123
@@ -9605,6 +9996,7 @@ ip route show table local
 ```
 
 **Step 5: Tracing the actual egress path**
+
 ```bash
 # From inside the pod, trace route to external destination
 kubectl exec -it <pod-name> -- traceroute 8.8.8.8
@@ -9622,6 +10014,7 @@ iptables -t filter -L FORWARD -n -v
 **Detailed packet flow for pod egress:**
 
 1. **Pod generates traffic:**
+
 ```bash
 # Inside pod: curl https://api.github.com
 # Packet: src=10.0.1.45 (pod IP), dst=140.82.112.3 (github.com)
@@ -9629,6 +10022,7 @@ iptables -t filter -L FORWARD -n -v
 ```
 
 2. **Traffic hits veth pair:**
+
 ```bash
 # Packet moves from pod's eth0 to node's veth123
 # Node receives packet on veth123 interface
@@ -9636,6 +10030,7 @@ iptables -t filter -L FORWARD -n -v
 ```
 
 3. **Node routing decision:**
+
 ```bash
 # Node routing table lookup
 ip route get 140.82.112.3 from 10.0.1.45
@@ -9646,6 +10041,7 @@ ip route get 140.82.112.3 from 10.0.1.45
 ```
 
 4. **SNAT (Source NAT) transformation:**
+
 ```bash
 # iptables POSTROUTING chain applies SNAT
 iptables -t nat -L POSTROUTING -n -v | grep -A5 -B5 "10.0.1.45"
@@ -9656,6 +10052,7 @@ iptables -t nat -L POSTROUTING -n -v | grep -A5 -B5 "10.0.1.45"
 ```
 
 5. **Egress via ENI:**
+
 ```bash
 # Packet exits via node's primary ENI
 # AWS VPC routing takes over
@@ -9666,6 +10063,7 @@ iptables -t nat -L POSTROUTING -n -v | grep -A5 -B5 "10.0.1.45"
 #### B.5 Advanced Debugging Techniques
 
 **Monitoring link-local traffic:**
+
 ```bash
 # Monitor ARP traffic for link-local gateway
 tcpdump -i any arp and host 169.254.1.1
@@ -9678,6 +10076,7 @@ conntrack -L | grep 10.0.1.45
 ```
 
 **Understanding AWS VPC CNI's iptables rules:**
+
 ```bash
 # AWS VPC CNI creates specific iptables rules
 iptables -t nat -L AWS-VPC-CNI-POSTROUTING -n -v
@@ -9690,6 +10089,7 @@ iptables -t filter -L AWS-VPC-CNI-FORWARD -n -v
 ```
 
 **Debugging external SNAT mode:**
+
 ```bash
 # Check if external SNAT is enabled
 kubectl -n kube-system get daemonset aws-node -o yaml | grep AWS_VPC_K8S_CNI_EXTERNALSNAT
@@ -9701,6 +10101,7 @@ kubectl -n kube-system get daemonset aws-node -o yaml | grep AWS_VPC_K8S_CNI_EXT
 #### B.6 Common Link-Local Issues and Debugging
 
 **Issue 1: Link-local gateway unreachable**
+
 ```bash
 # Symptoms: Pod can't reach external services
 # Debug from inside pod:
@@ -9714,6 +10115,7 @@ ethtool veth123  # Check if link is up
 ```
 
 **Issue 2: ARP resolution failures**
+
 ```bash
 # Check ARP table from pod's perspective
 kubectl exec -it <pod> -- ip neigh show
@@ -9726,6 +10128,7 @@ kubectl -n kube-system logs -l k8s-app=aws-node
 ```
 
 **Issue 3: SNAT not working**
+
 ```bash
 # Check if pod traffic is being SNATed correctly
 # From node, monitor outgoing traffic:
@@ -9739,6 +10142,7 @@ iptables -t nat -L POSTROUTING -n -v | grep 10.0.1.45
 #### B.7 Performance Implications of Link-Local Routing
 
 **Understanding the overhead:**
+
 ```bash
 # Measure latency through the link-local path
 kubectl exec -it <pod> -- ping -c 10 169.254.1.1
@@ -9751,6 +10155,7 @@ top -p $(pgrep -f aws-node)
 ```
 
 **Optimizing for high-throughput workloads:**
+
 ```bash
 # Check network buffer sizes
 kubectl exec -it <pod> -- cat /proc/sys/net/core/rmem_max
@@ -9771,6 +10176,7 @@ This deep dive shows that the "link-local gateway" at 169.254.1.1 is actually a 
 #### C.2 Prometheus Queries for EKS Monitoring
 
 **Node health:**
+
 ```promql
 # Node CPU usage
 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
@@ -9783,6 +10189,7 @@ This deep dive shows that the "link-local gateway" at 169.254.1.1 is actually a 
 ```
 
 **Pod resource usage:**
+
 ```promql
 # Pod CPU usage
 rate(container_cpu_usage_seconds_total[5m])
