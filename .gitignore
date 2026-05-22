@@ -6,3 +6,4 @@ _site
 vendor
 Gemfile.lock
 .zed
+.DS_Store

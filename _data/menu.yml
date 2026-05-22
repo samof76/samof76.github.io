@@ -18,6 +18,8 @@ entries:
         url: https://riggraz.dev/
       - title: template itself.
         url: https://github.com/riggraz/no-style-please
+      - title: font creators.
+        url: https://github.com/githubnext/monaspace
 
   - title: more about me...
     url: about
